@@ -2,10 +2,11 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 import psycopg2
 import calendar            
 import config
+import random
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = config.SECRET_KEY  # 세션 암호화에 필요 (아무거나 입력 가능)
+app.secret_key = config.secret_key  # 세션 암호화에 필요 (아무거나 입력 가능)
 
 # 1. 데이터베이스 연결 설정 
 DB_HOST = "localhost"
@@ -55,133 +56,180 @@ def login():
 # 3. 로그인 성공 후 이동할 화면 (대시보드)
 # app.py의 dashboard 함수 교체
 
-# app.py 의 dashboard 함수를 아래 코드로 통째로 교체하세요.
+# =========================================================
+# 색상 팔레트 (매장별 고정 색상을 위해 사용)
+STORE_COLORS = [
+    "#EDADB4", # 빨강 (파스텔)
+    "#A9CCEA", # 파랑 (파스텔)
+    "#A2D1A4", # 초록 (파스텔)
+    "#E1BBE8", # 보라 (파스텔)
+    "#F0D0A0", # 주황 (파스텔)
+    "#99E7CA", # 청록 (파스텔)
+    "#E1F3A5", # 라임 (파스텔)
+]
 
 @app.route('/dashboard')
 def dashboard():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    
+    if 'user_id' not in session: return redirect(url_for('login'))
     user_id = session['user_id']
     
-    # 1. URL에서 년/월 가져오기 (없으면 현재 시스템 날짜 기준)
-    # request.args.get('키', 기본값, 타입) 함수를 씁니다.
-    now = datetime.now()
-    year = request.args.get('year', 2025, type=int)  # 테스트 데이터가 있는 2025년을 기본값으로
+    # 1. 파라미터 받기 (년/월/선택된 매장ID)
+    year = request.args.get('year', 2025, type=int)
     month = request.args.get('month', 12, type=int)
-    
-    # 2. '이전 달' 계산 로직
-    if month == 1:
-        prev_month = 12
-        prev_year = year - 1
-    else:
-        prev_month = month - 1
-        prev_year = year
+    current_store_id = request.args.get('store_id', type=int) # 없으면 None (전체보기)
 
-    # 3. '다음 달' 계산 로직
-    if month == 12:
-        next_month = 1
-        next_year = year + 1
-    else:
-        next_month = month + 1
-        next_year = year
+    # 2. 날짜 계산 (이전/다음 달)
+    if month == 1: prev_month=12; prev_year=year-1
+    else: prev_month=month-1; prev_year=year
+    if month == 12: next_month=1; next_year=year+1
+    else: next_month=month+1; next_year=year
 
     conn = get_db_connection()
     cur = conn.cursor()
+
+    # 3. [필터링용] 내가 일하는 매장 목록 가져오기 (드롭다운 메뉴용)
+    cur.execute("""
+        SELECT s.store_id, s.name 
+        FROM StoreUser su
+        JOIN Store s ON su.store_id = s.store_id
+        WHERE su.user_id = %s
+    """, (user_id,))
+    my_stores = cur.fetchall() 
+
+    # 4. SQL 기본 조건 (필터링 적용)
+    # 매장이 선택되었으면 SQL 뒤에 붙일 조건문 생성
+    filter_condition = ""
+    params = [user_id, year, month]
     
-    # 4. 해당 년/월의 스케줄 조회 (SQL은 그대로!)
-    sql = """
+    if current_store_id:
+        filter_condition = " AND s.store_id = %s "
+        params.append(current_store_id)
+
+    # -------------------------------------------------------
+    # [Query 1] 내 스케줄 (확정된 것 + 내가 수락해서 대기중인 것 포함)
+    # 기존 로직을 합쳐서 가져옵니다.
+    # -------------------------------------------------------
+    sql_schedule = f"""
         SELECT 
-            s.schedule_id, 
-            st.name, 
-            s.start_time, 
-            s.end_time,
-            d.status
+            s.schedule_id, st.store_id, st.name, s.start_time, s.end_time,
+            d.deta_id, d.status, d.accepter_id
         FROM Schedule s
         JOIN Store st ON s.store_id = st.store_id
         LEFT JOIN Deta d ON s.schedule_id = d.schedule_id
         WHERE s.user_id = %s 
-          AND EXTRACT(YEAR FROM s.start_time) = %s
+          AND EXTRACT(YEAR FROM s.start_time) = %s 
           AND EXTRACT(MONTH FROM s.start_time) = %s
+          {filter_condition}
         ORDER BY s.start_time ASC
     """
-    cur.execute(sql, (user_id, year, month))
-    rows = cur.fetchall()
+    cur.execute(sql_schedule, tuple(params))
+    my_rows = cur.fetchall()
 
-    # ★ 추가됨: 내가 '수락'했고 아직 '승인대기' 중인 스케줄 조회
-    sql_pending = """
-        SELECT d.deta_id, st.name, s.start_time, s.end_time
+    # -------------------------------------------------------
+    # [Query 2] 내가 수락한(승인대기) 남의 스케줄
+    # (이건 내 스케줄 테이블엔 없지만 달력엔 보여야 함)
+    # -------------------------------------------------------
+    # 파라미터 다시 세팅 (user_id, year, month) + optional store_id
+    params_pending = [user_id, year, month]
+    if current_store_id: params_pending.append(current_store_id)
+
+    sql_pending = f"""
+        SELECT d.deta_id, st.store_id, st.name, s.start_time, s.end_time
         FROM Deta d
         JOIN Schedule s ON d.schedule_id = s.schedule_id
         JOIN Store st ON s.store_id = st.store_id
         WHERE d.accepter_id = %s 
           AND d.status = '승인대기'
-          AND EXTRACT(YEAR FROM s.start_time) = %s AND EXTRACT(MONTH FROM s.start_time) = %s
+          AND EXTRACT(YEAR FROM s.start_time) = %s 
+          AND EXTRACT(MONTH FROM s.start_time) = %s
+          {filter_condition}
     """
-    cur.execute(sql_pending, (user_id, year, month))
+    cur.execute(sql_pending, tuple(params_pending))
     pending_rows = cur.fetchall()
 
-    sql_open = """
-            SELECT 
-                d.deta_id, 
-                s.schedule_id,
-                st.name, 
-                u.name, -- 요청자 이름
-                s.start_time, 
-                s.end_time
-            FROM Deta d
-            JOIN Schedule s ON d.schedule_id = s.schedule_id
-            JOIN Store st ON s.store_id = st.store_id
-            JOIN "User" u ON d.requester_id = u.user_id
-            WHERE d.status = '구하는중'
-            AND d.requester_id != %s  -- 내가 쓴 글은 제외
-            AND s.store_id IN (SELECT store_id FROM StoreUser WHERE user_id = %s) -- 내가 일하는 매장만
-        """
-    cur.execute(sql_open, (user_id, user_id))
-    open_requests = cur.fetchall()
-        
+    # -------------------------------------------------------
+    # [Query 3] 하단 리스트 (전체 대타 내역)
+    # 조건: '구하는중'만 보는 게 아니라 전체 다 봄.
+    # 단, '완료'된 건 너무 많으면 지저분하니까 최근 것만 보거나 해야겠지만, 일단 다 보여줌.
+    # -------------------------------------------------------
+    # 파라미터: user_id(내 매장만 보기 위해), + optional store_id
+    params_list = [user_id]
+    if current_store_id: params_list.append(current_store_id)
+
+    sql_list = f"""
+        SELECT 
+            d.deta_id, s.schedule_id, st.store_id, st.name, 
+            u_req.name, -- 요청자
+            u_acc.name, -- 수락자 (없으면 NULL)
+            s.start_time, s.end_time, d.status, d.requester_id
+        FROM Deta d
+        JOIN Schedule s ON d.schedule_id = s.schedule_id
+        JOIN Store st ON s.store_id = st.store_id
+        JOIN "User" u_req ON d.requester_id = u_req.user_id
+        LEFT JOIN "User" u_acc ON d.accepter_id = u_acc.user_id
+        WHERE s.store_id IN (SELECT store_id FROM StoreUser WHERE user_id = %s)
+          {filter_condition}
+        ORDER BY 
+            CASE WHEN d.status = '구하는중' THEN 1 
+                 WHEN d.status = '승인대기' THEN 2 
+                 ELSE 3 END, -- 상태 순서 정렬 (급한 것 부터)
+            s.start_time ASC
+    """
+    cur.execute(sql_list, tuple(params_list))
+    all_requests = cur.fetchall() # 변수명 변경 open_requests -> all_requests
+
     cur.close()
     conn.close()
 
+    # -------------------------------------------------------
+    # 데이터 가공 (Calendar Map 만들기)
+    # -------------------------------------------------------
     schedule_map = {}
-    for row in rows:
-        day = row[2].day
-        deta_status = row[4] if row[4] else '없음'
+
+    # 1. 내 스케줄 처리
+    for row in my_rows:
+        day = row[3].day
+        # 색상 결정: store_id를 인덱스로 사용
+        color_idx = row[1] % len(STORE_COLORS)
+        bg_color = STORE_COLORS[color_idx]
+
         info = {
             'type': 'confirmed',
-            'id': row[0],
-            'store_name': row[1],
-            'time_str': f"{row[2].strftime('%H:%M')} ~ {row[3].strftime('%H:%M')}",
-            'status': deta_status
+            'id': row[0], 
+            'store_name': row[2],
+            'time_str': f"{row[3].strftime('%H:%M')}~{row[4].strftime('%H:%M')}",
+            'status': row[6] if row[6] else '없음',
+            'bg_color': bg_color # 색상 추가
         }
-        if day in schedule_map:
-            schedule_map[day].append(info)
-        else:
-            schedule_map[day] = [info]
+        if day in schedule_map: schedule_map[day].append(info)
+        else: schedule_map[day] = [info]
 
-    # B. ★ 추가됨: 승인 대기 스케줄 넣기 (구별을 위해 type='pending' 설정)
+    # 2. 승인 대기 스케줄 처리 (흐릿하게)
     for row in pending_rows:
-        day = row[2].day
+        day = row[3].day
+        # 승인 대기는 색상을 좀 다르게 하거나 흐릿하게 처리 (HTML에서 opacity 조절)
+        color_idx = row[1] % len(STORE_COLORS)
+        bg_color = STORE_COLORS[color_idx] # 같은 매장 색상 쓰되 흐리게
+
         info = {
-            'type': 'pending', # 승인 대기 중인 스케줄
-            'deta_id': row[0], 
-            'store_name': row[1],
-            'time_str': f"{row[2].strftime('%H:%M')} ~ {row[3].strftime('%H:%M')}",
-            'status': '승인대기'
+            'type': 'pending',
+            'deta_id': row[0],
+            'store_name': row[2],
+            'time_str': f"{row[3].strftime('%H:%M')}~{row[4].strftime('%H:%M')}",
+            'status': '승인대기',
+            'bg_color': bg_color
         }
         if day in schedule_map: schedule_map[day].append(info)
         else: schedule_map[day] = [info]
 
     cal = calendar.monthcalendar(year, month)
 
-    # 5. HTML로 계산된 '이전/다음' 정보를 같이 넘겨줍니다.
     return render_template('dashboard.html', 
-                           name=session['name'], 
-                           year=year, 
-                           month=month, 
-                           calendar_matrix=cal, 
-                           schedule_map=schedule_map,
-                           open_requests=open_requests,
+                           name=session['name'], user_id=user_id,
+                           year=year, month=month, 
+                           calendar_matrix=cal, schedule_map=schedule_map,
+                           all_requests=all_requests, # 전체 리스트 전달
+                           my_stores=my_stores, current_store_id=current_store_id, # 필터용 데이터
                            prev_year=prev_year, prev_month=prev_month,
                            next_year=next_year, next_month=next_month)
 
