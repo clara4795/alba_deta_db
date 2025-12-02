@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>알바 스케줄 관리 - 로그인</title>
+</head>
+<body>
+    <h2>로그인</h2>
+    
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul>
+        {% for message in messages %}
+          <li style="color: red;">{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post">
+        <label>이메일:</label><br>
+        <input type="email" name="email" required><br><br>
+        
+        <label>비밀번호:</label><br>
+        <input type="password" name="password" required><br><br>
+        
+        <button type="submit">로그인 하기</button>
+    </form>
+</body>
+</html>

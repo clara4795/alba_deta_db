@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>내 스케줄 (캘린더)</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        
+        /* 캘린더 그리드 스타일 */
+        .calendar-container {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr); /* 7칸으로 나누기 (월~일) */
+            gap: 5px;
+            max-width: 1000px;
+        }
+        
+        .day-header {
+            background-color: #333;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .day-cell {
+            border: 1px solid #ddd;
+            min-height: 120px; /* 칸 높이 */
+            padding: 5px;
+            background-color: #fff;
+            vertical-align: top;
+        }
+        
+        .day-number {
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        .empty-cell {
+            background-color: #f9f9f9; /* 날짜 없는 칸은 회색 */
+        }
+
+        /* 스케줄 카드 스타일 */
+        .schedule-item {
+            background-color: #e3f2fd;
+            border: 1px solid #90caf9;
+            border-radius: 4px;
+            padding: 4px;
+            margin-bottom: 4px;
+            font-size: 0.85em;
+        }
+        .store-name { font-weight: bold; color: #1565c0; }
+        .work-time { color: #555; }
+    </style>
+</head>
+<body>
+    {% with messages = get_flashed_messages() %}
+     <!--   {% if messages %}
+            <script>
+            // 파이썬에서 보낸 메시지가 있으면 자바스크립트 경고창(alert)으로 띄웁니다.
+            {% for message in messages %}
+                alert("{{ message }}"); 
+            {% endfor %}
+            </script>
+        {% endif %}
+    {% endwith %} -->
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div style="background-color: #f8d7da; color: #721c24; padding: 10px; margin-bottom: 10px; border: 1px solid #f5c6cb; border-radius: 4px;">
+            {% for message in messages %}
+                <strong>알림:</strong> {{ message }}
+            {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1000px; margin-bottom: 10px;">
+    <a href="{{ url_for('dashboard', year=prev_year, month=prev_month) }}" 
+       style="text-decoration: none; font-size: 2em; color: #333;">
+       &lt; 
+    </a>
+
+    <h1 style="margin: 0;">📅 {{ year }}년 {{ month }}월</h1>
+
+    <a href="{{ url_for('dashboard', year=next_year, month=next_month) }}" 
+       style="text-decoration: none; font-size: 2em; color: #333;">
+       &gt;
+    </a>
+    </div>
+    <p>안녕하세요, <b>{{ name }}</b>님! 이번 달 일정을 확인하세요.</p>
+    
+    <div class="calendar-container">
+        <div class="day-header">월</div>
+        <div class="day-header">화</div>
+        <div class="day-header">수</div>
+        <div class="day-header">목</div>
+        <div class="day-header">금</div>
+        <div class="day-header">토</div>
+        <div class="day-header" style="color: #ff8a80;">일</div>
+
+        {% for week in calendar_matrix %}
+            {% for day in week %}
+                {% if day == 0 %}
+                    <div class="day-cell empty-cell"></div>
+                {% else %}
+                    <div class="day-cell">
+                        <span class="day-number">{{ day }}</span>
+                        
+                        {% for schedule in schedule_map[day] %}
+    
+                            {% if schedule.type == 'pending' %}
+                                <div class="schedule-item" style="background-color: #fff3e0; border-color: #ffb74d; opacity: 0.7; border-style: dashed">
+                                    <div class="store-name" style="color: #ff9800;">(승인 대기) {{ schedule.store_name }}</div>
+                                    <div class="work-time">{{ schedule.time_str }}</div>
+                                    
+                                    <form action="{{ url_for('cancel_accept', deta_id=schedule.deta_id) }}" method="post" style="margin-top: 5px;">
+                                        <button type="submit" 
+                                                style="background-color: #ef5350; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em; width: 100%;"
+                                                onclick="return confirm('대타 수락을 취소하시겠습니까?');">
+                                            ↩️ 수락 취소
+                                        </button>
+                                    </form>
+                                </div>
+
+                            {% else %}
+                                <div class="schedule-item">
+                                    <div class="store-name">{{ schedule.store_name }}</div>
+                                    <div class="work-time">{{ schedule.time_str }}</div>
+                                    
+                                    <div style="margin-top: 5px;">
+                                        {% if schedule.status == '없음' %}
+                                            <form action="{{ url_for('request_deta', schedule_id=schedule.id) }}" method="post">
+                                                <button type="submit" style="background-color: #ff5252; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em; width: 100%;" onclick="return confirm('이 스케줄의 대타를 구하시겠습니까?');">
+                                                    📢 대타 구함
+                                                </button>
+                                            </form>
+                                        {% elif schedule.status == '구하는중' %}
+                                            <span style="font-size: 0.8em; color: #2196F3; font-weight: bold;">⏳ 구하는 중...</span>
+                                            <form action="{{ url_for('cancel_deta', schedule_id=schedule.id) }}" method="post" style="margin-top: 3px;">
+                                                <button type="submit" style="background-color: #90a4ae; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em; width: 100%;" onclick="return confirm('대타 요청을 취소하시겠습니까?');">
+                                                    ❌ 요청 취소
+                                                </button>
+                                            </form>
+                                        {% elif schedule.status == '승인대기' %}
+                                            <span style="font-size: 0.8em; color: #ff9800; font-weight: bold;">🔒 승인 대기</span>
+                                        {% else %}
+                                            <span style="font-size: 0.8em; color: #4caf50;">{{ schedule.status }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                        {% endfor %}
+                                                
+                    </div>
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+    </div> <div style="max-width: 1000px; margin-top: 40px; border-top: 2px dashed #ccc; padding-top: 20px;">
+        <h2>📢 동료들의 대타 요청! </h2>
+        
+        {% if open_requests %}
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr style="background-color: #ffebee;">
+                    <th>매장</th>
+                    <th>요청자</th>
+                    <th>근무 날짜</th>
+                    <th>시간</th>
+                    <th>대타 수락</th>
+                </tr>
+                {% for req in open_requests %}
+                <tr>
+                    <td>{{ req[2] }}</td> <td>{{ req[3] }}</td> <td>{{ req[4].strftime('%Y-%m-%d') }}</td>
+                    <td>{{ req[4].strftime('%H:%M') }} ~ {{ req[5].strftime('%H:%M') }}</td>
+                    <td>
+                        <form action="{{ url_for('accept_deta', deta_id=req[0], schedule_id=req[1]) }}" method="post">
+                            <button type="submit" 
+                                    style="background-color: #4caf50; color: white; padding: 5px 10px; border: none; borderRadius: 4px; cursor: pointer;"
+                                    onclick="return confirm('정말 근무를 대신 하시겠습니까?');">
+                                🙆‍♂️ 제가 할게요!
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p style="color: #666; text-align: center;">현재 올라온 대타 요청이 없습니다. 평화롭네요! 🕊️</p>
+        {% endif %}
+    </div>
+
+</body>
+</html>
+
+    <br>
+    <a href="/">로그아웃</a>
+</body>
+</html>
