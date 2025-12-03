@@ -120,9 +120,12 @@ def dashboard():
     sql_schedule = f"""
         SELECT 
             s.schedule_id, st.store_id, st.name, s.start_time, s.end_time,
-            d.deta_id, d.status, d.accepter_id
+            d.deta_id, d.status, d.accepter_id,
+            su.hourly_wage,
+            s.work_time
         FROM Schedule s
         JOIN Store st ON s.store_id = st.store_id
+        JOIN StoreUser su ON s.store_id = su.store_id AND s.user_id = su.user_id
         LEFT JOIN Deta d ON s.schedule_id = d.schedule_id
         WHERE s.user_id = %s 
           AND EXTRACT(YEAR FROM s.start_time) = %s 
@@ -193,6 +196,7 @@ def dashboard():
     # 데이터 가공 (Calendar Map 만들기)
     # -------------------------------------------------------
     schedule_map = {}
+    total_salary = 0
 
     # 1. 내 스케줄 처리
     for row in my_rows:
@@ -201,13 +205,29 @@ def dashboard():
         color_idx = row[1] % len(STORE_COLORS)
         bg_color = STORE_COLORS[color_idx]
 
+        # ★ [급여 계산 로직]
+
+        hourly_wage = row[8] if row[8] else 0 # 시급이 없으면 0원 처리
+        work_interval = row[9]
+        
+        daily_wage = 0
+        if work_interval:
+            # timedelta에서 '총 시간(hour)' 추출하기
+            total_hours = work_interval.total_seconds() / 3600
+            daily_wage = int(total_hours * hourly_wage)
+        
+        # 총 급여에 누적
+        total_salary += daily_wage
+
         info = {
             'type': 'confirmed',
             'id': row[0], 
             'store_name': row[2],
             'time_str': f"{row[3].strftime('%H:%M')}~{row[4].strftime('%H:%M')}",
             'status': row[6] if row[6] else '없음',
-            'bg_color': bg_color # 색상 추가
+            'bg_color': bg_color,
+            'daily_wage': daily_wage,
+            'wage_formatted': f"{daily_wage:,}"
         }
         if day in schedule_map: schedule_map[day].append(info)
         else: schedule_map[day] = [info]
@@ -232,6 +252,8 @@ def dashboard():
 
     cal = calendar.monthcalendar(year, month)
 
+    total_salary_str = f"{total_salary:,}"
+
     return render_template('dashboard.html', 
                            name=session['name'], user_id=user_id,
                            year=year, month=month, 
@@ -239,6 +261,7 @@ def dashboard():
                            all_requests=all_requests, # 전체 리스트 전달
                            my_stores=my_stores, current_store_id=current_store_id, # 필터용 데이터
                            current_store_name=current_store_name,
+                           total_salary=total_salary_str,
                            prev_year=prev_year, prev_month=prev_month,
                            next_year=next_year, next_month=next_month)
 
