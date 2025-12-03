@@ -158,6 +158,8 @@
                                                     </form>
                                                 {% elif schedule.status == '승인대기' %}
                                                     <span class="badge badge-yellow">🔒 승인대기</span>
+                                                {% elif schedule.status == '완료' %}
+                                                    <span class="badge badge-gray">변경 완료</span>
                                                 {% else %}
                                                     <span class="badge badge-gray">{{ schedule.status }}</span>
                                                 {% endif %}
@@ -209,10 +211,23 @@
                             (내가 올린 요청)
                         </div>
                     {% elif req[8] == '승인대기' %}
-                        <div style="text-align: center; color: #ff9800; font-size: 0.9em; border: 1px dashed #ff9800; padding: 5px; border-radius: 4px;">
-                            매니저 승인 대기중
-                        </div>
-                    {% endif %}
+                            {% if req[10] == '매니저' or req[10] == '사장님' %}
+                                <form action="{{ url_for('approve_deta', deta_id=req[0], schedule_id=req[1]) }}" method="post">
+                                    <button class="btn-accept" style="background-color: #fe663c;" onclick="return confirm('최종 승인하시겠습니까? 스케줄이 변경됩니다.')">
+                                        ✅ 대타 승인
+                                    </button>
+                                </form>
+                            {% else %}
+                                <div style="text-align: center; color: #ff9800; font-size: 0.9em; border: 1px dashed #ff9800; padding: 5px; border-radius: 4px;">
+                                    🔒 매니저 승인 대기중
+                                </div>
+                            {% endif %}
+                            
+                        {% elif req[8] == '완료' %}
+                            <div style="text-align: center; color: #999; font-size: 0.9em;">
+                                ✨ 변경 완료됨
+                            </div>
+                        {% endif %}
                 </div>
                 {% endfor %}
             {% else %}

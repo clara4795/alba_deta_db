@@ -165,30 +165,37 @@ def dashboard():
     # -------------------------------------------------------
     # 파라미터: user_id(내 매장만 보기 위해), + optional store_id
     params_list = [user_id]
-    if current_store_id: params_list.append(current_store_id)
+    if current_store_id: 
+        params_list.append(current_store_id)
+        # 쿼리 중간에 넣을 필터 조건
+        filter_clause = "AND s.store_id = %s" 
+    else:
+        filter_clause = ""
 
     sql_list = f"""
-        SELECT 
-            d.deta_id, s.schedule_id, st.store_id, st.name, 
-            u_req.name, -- 요청자
-            u_acc.name, -- 수락자 (없으면 NULL)
-            s.start_time, s.end_time, d.status, d.requester_id
-        FROM Deta d
-        JOIN Schedule s ON d.schedule_id = s.schedule_id
-        JOIN Store st ON s.store_id = st.store_id
-        JOIN "User" u_req ON d.requester_id = u_req.user_id
-        LEFT JOIN "User" u_acc ON d.accepter_id = u_acc.user_id
-        WHERE s.store_id IN (SELECT store_id FROM StoreUser WHERE user_id = %s)
-          {filter_condition}
-        ORDER BY 
-            CASE WHEN d.status = '구하는중' THEN 1 
-                 WHEN d.status = '승인대기' THEN 2 
-                 ELSE 3 END, -- 상태 순서 정렬 (급한 것 부터)
-            s.start_time ASC
-    """
-    cur.execute(sql_list, tuple(params_list))
-    all_requests = cur.fetchall() # 변수명 변경 open_requests -> all_requests
-
+            SELECT 
+                d.deta_id, s.schedule_id, st.store_id, st.name, 
+                u_req.name, u_acc.name, s.start_time, s.end_time, d.status, d.requester_id,
+                su_me.role  -- <--- ★ [추가됨] 이 매장에서의 나의 직급 (인덱스 10번)
+            FROM Deta d
+            JOIN Schedule s ON d.schedule_id = s.schedule_id
+            JOIN Store st ON s.store_id = st.store_id
+            JOIN "User" u_req ON d.requester_id = u_req.user_id
+            LEFT JOIN "User" u_acc ON d.accepter_id = u_acc.user_id
+            -- ★ [추가됨] 이 글을 보는 '나(Session user)'의 정보를 해당 매장에서 찾기
+            JOIN StoreUser su_me ON s.store_id = su_me.store_id AND su_me.user_id = %s
+            WHERE 1=1
+            {filter_clause}
+            ORDER BY 
+                CASE WHEN d.status = '구하는중' THEN 1 WHEN d.status = '승인대기' THEN 2 ELSE 3 END,
+                s.start_time ASC
+        """
+    # ★ 파라미터 순서 재정의 (쿼리가 바뀌었으므로)
+    final_params = [user_id] 
+    if current_store_id: final_params.append(current_store_id)
+    
+    cur.execute(sql_list, tuple(final_params))
+    all_requests = cur.fetchall()
     cur.close()
     conn.close()
 
@@ -394,13 +401,54 @@ def cancel_accept(deta_id):
         
         if cur.rowcount > 0:
             conn.commit()
-            flash('수락을 취소했습니다. 해당 스케줄은 다시 대타 목록에 올라갑니다.')
+            flash('수락을 취소했습니다.')
         else:
             flash('취소할 수 없는 상태입니다.')
             
     except Exception as e:
         conn.rollback()
         flash('오류 발생: ' + str(e))
+    finally:
+        cur.close()
+        conn.close()
+        
+    return redirect(url_for('dashboard'))
+
+# app.py 맨 아래에 추가
+
+@app.route('/approve_deta/<int:deta_id>/<int:schedule_id>', methods=['POST'])
+def approve_deta(deta_id, schedule_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # [Transaction 시작]
+        # 1. Deta 상태를 '완료'로 변경
+        cur.execute("""
+            UPDATE Deta 
+            SET status = '완료' 
+            WHERE deta_id = %s AND status = '승인대기'
+        """, (deta_id,))
+        
+        # 2. Schedule의 주인을 수락자(accepter_id)로 변경
+        # (Deta 테이블에 있는 accepter_id를 가져와서 Schedule을 업데이트하는 고급 쿼리)
+        cur.execute("""
+            UPDATE Schedule
+            SET user_id = (SELECT accepter_id FROM Deta WHERE deta_id = %s)
+            WHERE schedule_id = %s
+        """, (deta_id, schedule_id))
+        
+        # 두 쿼리가 모두 문제없이 실행되면 저장!
+        conn.commit()
+        flash('✅ 승인 완료! 스케줄이 변경되었습니다.')
+        
+    except Exception as e:
+        # 하나라도 에러나면 없던 일로 되돌리기
+        conn.rollback()
+        flash('❌ 오류 발생: ' + str(e))
+        
     finally:
         cur.close()
         conn.close()
