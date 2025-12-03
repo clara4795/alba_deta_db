@@ -134,55 +134,64 @@
         {% endfor %}
     </div>
 
-    <div style="max-width: 1000px; margin-top: 40px; border-top: 2px solid #eee; padding-top: 20px;">
-        <h2>📋 매장 대타 현황 (전체 내역)</h2>
+   <div style="max-width: 1000px; margin-top: 40px; border-top: 2px solid #eee; padding-top: 20px;">
         
-        <table style="width: 100%; border-collapse: collapse; text-align: center;">
+        <h2>📋 {{ current_store_name }} 대타 현황</h2>
+        
+        <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 0.9em;">
             <tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">
                 <th style="padding: 10px;">상태</th>
                 <th>매장</th>
-                <th>날짜 / 시간</th>
-                <th>요청자 -> 수락자</th>
-                <th>관리</th>
+                <th>날짜</th>   <th>시간</th>   <th>요청자</th> <th>수락자</th> <th>관리</th>
             </tr>
 
             {% if all_requests %}
                 {% for req in all_requests %}
-                <tr style="border-bottom: 1px solid #eee;">
-                    <td style="padding: 10px;">
+                <tr style="border-bottom: 1px solid #eee; height: 50px;">
+                    <td>
                         {% if req[8] == '구하는중' %} <span class="badge badge-green">🟢 모집중</span>
                         {% elif req[8] == '승인대기' %} <span class="badge badge-yellow">🟡 승인대기</span>
                         {% else %} <span class="badge badge-gray">⚪ {{ req[8] }}</span>
                         {% endif %}
                     </td>
+                    
                     <td>{{ req[3] }}</td>
-                    <td>
-                        {{ req[6].strftime('%Y-%m-%d') }}<br>
-                        <span style="font-size: 0.8em; color: #666;">
-                            {{ req[6].strftime('%H:%M') }} ~ {{ req[7].strftime('%H:%M') }}
-                        </span>
+                    
+                    <td style="color: #333; font-weight: bold;">
+                        {{ req[6].strftime('%Y-%m-%d') }}
                     </td>
-                    <td>
-                        {{ req[4] }} 
-                        {% if req[5] %} ➡️ {{ req[5] }} {% endif %}
+
+                    <td style="color: #555;">
+                        {{ req[6].strftime('%H:%M') }} ~ {{ req[7].strftime('%H:%M') }}
                     </td>
+
+                    <td>{{ req[4] }}</td>
+
+                    <td>
+                        {% if req[5] %}
+                            <span style="color: #2e7d32; font-weight: bold;">{{ req[5] }}</span>
+                        {% else %}
+                            <span style="color: #ccc;">-</span>
+                        {% endif %}
+                    </td>
+
                     <td>
                         {% if req[8] == '구하는중' and req[9] != user_id %}
                             <form action="{{ url_for('accept_deta', deta_id=req[0], schedule_id=req[1]) }}" method="post">
-                                <button class="btn-sm btn-accept" style="width: auto;" onclick="return confirm('수락하시겠습니까?')">🙆‍♂️ 수락하기</button>
+                                <button class="btn-sm btn-accept" style="width: auto;" onclick="return confirm('수락하시겠습니까?')">🙆‍♂️ 수락</button>
                             </form>
                         
                         {% elif req[8] == '구하는중' and req[9] == user_id %}
-                             <span style="color: #2196F3; font-size: 0.9em;">(내 요청글)</span>
+                             <span style="color: #2196F3;">(내 요청)</span>
 
                         {% elif req[8] == '승인대기' %}
-                             <span style="color: #ef6c00; font-size: 0.9em;">관리자 확인중</span>
+                             <span style="color: #ef6c00;">승인 대기 중</span>
                         {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
             {% else %}
-                <tr><td colspan="5" style="padding: 20px; color: #999;">대타 내역이 없습니다.</td></tr>
+                <tr><td colspan="7" style="padding: 20px; color: #999;">대타 내역이 없습니다.</td></tr>
             {% endif %}
         </table>
     </div>

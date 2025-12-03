@@ -59,13 +59,13 @@ def login():
 # =========================================================
 # 색상 팔레트 (매장별 고정 색상을 위해 사용)
 STORE_COLORS = [
-    "#EDADB4", # 빨강 (파스텔)
-    "#A9CCEA", # 파랑 (파스텔)
-    "#A2D1A4", # 초록 (파스텔)
-    "#E1BBE8", # 보라 (파스텔)
-    "#F0D0A0", # 주황 (파스텔)
-    "#99E7CA", # 청록 (파스텔)
-    "#E1F3A5", # 라임 (파스텔)
+    '#FFCDD2', # 빨강 (파스텔)
+    "#BBD7EE", # 파랑 (파스텔)
+    '#C8E6C9', # 초록 (파스텔)
+    '#E1BEE7', # 보라 (파스텔)
+    '#FFE0B2', # 주황 (파스텔)
+    '#B2DFDB', # 청록 (파스텔)
+    '#F0F4C3', # 라임 (파스텔)
 ]
 
 @app.route('/dashboard')
@@ -95,6 +95,14 @@ def dashboard():
         WHERE su.user_id = %s
     """, (user_id,))
     my_stores = cur.fetchall() 
+
+    # ★ [추가된 로직] 현재 선택된 매장 이름(current_store_name) 구하기
+    current_store_name = "전체 매장" # 기본값
+    if current_store_id:
+        for store in my_stores:
+            if store[0] == current_store_id:
+                current_store_name = store[1]
+                break
 
     # 4. SQL 기본 조건 (필터링 적용)
     # 매장이 선택되었으면 SQL 뒤에 붙일 조건문 생성
@@ -230,6 +238,7 @@ def dashboard():
                            calendar_matrix=cal, schedule_map=schedule_map,
                            all_requests=all_requests, # 전체 리스트 전달
                            my_stores=my_stores, current_store_id=current_store_id, # 필터용 데이터
+                           current_store_name=current_store_name,
                            prev_year=prev_year, prev_month=prev_month,
                            next_year=next_year, next_month=next_month)
 
