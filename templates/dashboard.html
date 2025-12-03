@@ -3,43 +3,79 @@
 <head>
     <title>알바 스케줄 대시보드</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f4f6f8; }
         
-        /* 캘린더 스타일 */
-        .calendar-container { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; max-width: 1000px; }
-        .day-header { background-color: #333; color: white; padding: 10px; text-align: center; font-weight: bold; }
-        .day-cell { border: 1px solid #ddd; min-height: 120px; padding: 5px; background-color: #fff; vertical-align: top; }
-        .day-number { font-weight: bold; margin-bottom: 5px; display: block; }
-        .empty-cell { background-color: #f9f9f9; }
-
-        /* 스케줄 아이템 스타일 */
-        .schedule-item {
-            border: 1px solid rgba(0,0,0,0.1);
-            border-radius: 6px;
-            padding: 5px;
-            margin-bottom: 4px;
-            font-size: 0.85em;
-            box-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        /* [레이아웃] 메인 컨테이너 (좌우 분할) */
+        .dashboard-container {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+            align-items: flex-start; /* 위쪽 정렬 */
         }
-        .store-name { font-weight: bold; color: #333; }
-        .work-time { color: #555; margin-bottom: 2px;}
 
-        /* 버튼 스타일 */
-        .btn-sm { border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em; padding: 4px 8px; width: 100%; margin-top: 3px; }
-        .btn-request { background-color: #ff5252; color: white; }
-        .btn-cancel { background-color: #90a4ae; color: white; }
-        .btn-accept { background-color: #4caf50; color: white; }
-        .btn-revert { background-color: #ef5350; color: white; }
+        /* 왼쪽: 달력 영역 (비율 7) */
+        .left-panel { flex: 7; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         
-        /* 상태 뱃지 */
-        .badge { padding: 3px 6px; border-radius: 4px; font-size: 0.8em; font-weight: bold; display: inline-block;}
-        .badge-green { background-color: #e8f5e9; color: #2e7d32; } /* 모집중 */
-        .badge-yellow { background-color: #fff3e0; color: #ef6c00; } /* 승인대기 */
-        .badge-gray { background-color: #eceff1; color: #607d8b; } /* 완료 */
+        /* 오른쪽: 대타 리스트 영역 (비율 3) */
+        .right-panel { 
+            flex: 3; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
+            max-height: 800px; /* 높이 제한 */
+            overflow-y: auto;  /* 내용 많으면 스크롤 */
+        }
+
+        /* 캘린더 스타일 */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+        .day-header { background-color: #37474f; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 4px; }
+        .day-cell { border: 1px solid #eee; min-height: 120px; padding: 5px; background-color: #fff; vertical-align: top; border-radius: 4px; }
+        .day-number { font-weight: bold; margin-bottom: 5px; display: block; color: #333; }
+        .empty-cell { background-color: #fafafa; border: none; }
+
+        /* 스케줄 아이템 (달력 내부) */
+        .schedule-item {
+            border-radius: 4px; padding: 5px; margin-bottom: 4px; font-size: 0.85em;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1); color: #333;
+        }
+        .store-name { font-weight: bold; }
+        
+        /* 대타 리스트 카드 스타일 (오른쪽 패널용) */
+        .request-card {
+            border: 1px solid #eee;
+            border-left: 4px solid #ddd; /* 상태별 색상 들어갈 곳 */
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+            background-color: #fff;
+            transition: transform 0.2s;
+        }
+        .request-card:hover { transform: translateY(-2px); box-shadow: 0 3px 6px rgba(0,0,0,0.1); }
+        
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .card-store { font-weight: bold; font-size: 1.1em; color: #333; }
+        .card-time { color: #555; font-size: 0.9em; margin-bottom: 5px; }
+        .card-people { font-size: 0.85em; color: #777; margin-bottom: 10px; }
+        
+        /* 버튼 공통 */
+        button { cursor: pointer; border: none; border-radius: 4px; padding: 4px 8px; width: 100%; font-weight: bold; transition: background 0.2s; font-size: 0.85em; }
+        .btn-request { background-color: #ff7043; color: white; } /* 주황 */
+        .btn-cancel { background-color: #b0bec5; color: white; } /* 회색 */
+        .btn-accept { background-color: #66bb6a; color: white; } /* 초록 */
+        .btn-revert { background-color: #ef5350; color: white; } /* 빨강 */
+        button:hover { opacity: 0.9; }
+
+        /* 뱃지 */
+        .badge { padding: 3px 8px; border-radius: 12px; font-size: 0.75em; font-weight: bold; }
+        .badge-green { background-color: #e8f5e9; color: #2e7d32; }
+        .badge-yellow { background-color: #fff3e0; color: #ef6c00; }
+        .badge-gray { background-color: #eceff1; color: #607d8b; }
 
         /* 상단 네비게이션 */
-        .nav-container { display: flex; justify-content: space-between; align-items: center; max-width: 1000px; margin-bottom: 20px; }
-        .nav-links a { text-decoration: none; font-size: 2em; color: #333; font-weight: bold; margin: 0 10px; }
+        .nav-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .nav-btn { text-decoration: none; font-size: 1.5em; color: #555; padding: 0 10px; }
     </style>
 </head>
 <body>
@@ -52,157 +88,143 @@
       {% endif %}
     {% endwith %}
 
-    <div class="nav-container">
-        <div style="display: flex; align-items: center;">
-            <a href="{{ url_for('dashboard', year=prev_year, month=prev_month, store_id=current_store_id) }}">&lt;</a>
-            
-            <h1 style="margin: 0 15px;">📅 {{ year }}년 {{ month }}월</h1>
-            
-            <a href="{{ url_for('dashboard', year=next_year, month=next_month, store_id=current_store_id) }}">&gt;</a>
-        </div>
-
-        <div style="font-size: 1.2em; font-weight: bold; color: #2e7d32; background-color: #e8f5e9; padding: 5px 10px; border-radius: 5px; display: inline-block;">
-                💰 이번 달 예상 급여: {{ total_salary }}원
-        </div>
-
-        <form action="{{ url_for('dashboard') }}" method="get">
-            <input type="hidden" name="year" value="{{ year }}">
-            <input type="hidden" name="month" value="{{ month }}">
-            
-            <select name="store_id" onchange="this.form.submit()" style="padding: 8px; font-size: 1em; border-radius: 4px;">
-                <option value="">🏪 모든 매장 보기</option>
-                {% for store in my_stores %}
-                    <option value="{{ store[0] }}" {% if current_store_id == store[0] %}selected{% endif %}>
-                        {{ store[1] }}
-                    </option>
-                {% endfor %}
-            </select>
-        </form>
-
-    </div>
-
-    <div class="calendar-container">
-        <div class="day-header">월</div><div class="day-header">화</div><div class="day-header">수</div>
-        <div class="day-header">목</div><div class="day-header">금</div><div class="day-header">토</div>
-        <div class="day-header">일</div>
-
-        {% for week in calendar_matrix %}
-            {% for day in week %}
-                {% if day == 0 %}
-                    <div class="day-cell empty-cell"></div>
-                {% else %}
-                    <div class="day-cell">
-                        <span class="day-number">{{ day }}</span>
-                        
-                        {% if day in schedule_map %}
-                            {% for schedule in schedule_map[day] %}
-                                
-                                <div class="schedule-item" 
-                                     style="background-color: {{ schedule.bg_color }}; 
-                                            {% if schedule.type == 'pending' %} opacity: 0.6; border: 2px dashed #999; {% endif %}">
-                                    
-                                    <div class="store-name">
-                                        {% if schedule.type == 'pending' %}(대기){% endif %} 
-                                        {{ schedule.store_name }}
-                                    </div>
-                                    <div class="work-time">{{ schedule.time_str }}</div>
-
-                                    <div>
-                                        {% if schedule.type == 'pending' %}
-                                            <form action="{{ url_for('cancel_accept', deta_id=schedule.deta_id) }}" method="post">
-                                                <button class="btn-sm btn-revert" onclick="return confirm('취소하시겠습니까?')">↩️ 수락 취소</button>
-                                            </form>
-
-                                        {% else %}
-                                            {% if schedule.status == '없음' %}
-                                                <form action="{{ url_for('request_deta', schedule_id=schedule.id) }}" method="post">
-                                                    <button class="btn-sm btn-request" onclick="return confirm('대타를 구하시겠습니까?')">📢 대타 구함</button>
-                                                </form>
-                                            {% elif schedule.status == '구하는중' %}
-                                                <span class="badge badge-green">⏳ 구하는 중</span>
-                                                <form action="{{ url_for('cancel_deta', schedule_id=schedule.id) }}" method="post">
-                                                    <button class="btn-sm btn-cancel" onclick="return confirm('취소하시겠습니까?')">❌ 요청 취소</button>
-                                                </form>
-                                            {% elif schedule.status == '승인대기' %}
-                                                <span class="badge badge-yellow">🔒 승인 대기중</span>
-                                            {% else %}
-                                                <span class="badge badge-gray">{{ schedule.status }}</span>
-                                            {% endif %}
-                                        {% endif %}
-                                    </div>
-                                </div>
+    <div class="dashboard-container">
+        
+        <div class="left-panel">
+            <div class="nav-container">
+                <div style="display: flex; align-items: center;">
+                    <a href="{{ url_for('dashboard', year=prev_year, month=prev_month, store_id=current_store_id) }}" class="nav-btn">&lt;</a>
+                    <h2 style="margin: 0 10px; color: #333;">📅 {{ year }}년 {{ month }}월</h2>
+                    <a href="{{ url_for('dashboard', year=next_year, month=next_month, store_id=current_store_id) }}" class="nav-btn">&gt;</a>
+                </div>
+                
+                <div style="text-align: right;">
+                    <form action="{{ url_for('dashboard') }}" method="get" style="display: inline-block; margin-right: 10px;">
+                        <input type="hidden" name="year" value="{{ year }}">
+                        <input type="hidden" name="month" value="{{ month }}">
+                        <select name="store_id" onchange="this.form.submit()" style="padding: 6px; border-radius: 4px; border: 1px solid #ccc;">
+                            <option value="">🏪 모든 매장 보기</option>
+                            {% for store in my_stores %}
+                                <option value="{{ store[0] }}" {% if current_store_id == store[0] %}selected{% endif %}>
+                                    {{ store[1] }}
+                                </option>
                             {% endfor %}
-                        {% endif %}
+                        </select>
+                    </form>
+                    <div style="display: inline-block; background: #e8f5e9; color: #2e7d32; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 0.9em;">
+                        💰 이번 달 예상 급여: {{ total_salary }}원
                     </div>
-                {% endif %}
-            {% endfor %}
-        {% endfor %}
-    </div>
+                </div>
+            </div>
 
-     <div style="max-width: 1000px; margin-top: 40px; border-top: 2px solid #eee; padding-top: 20px;">
-        
-        <h2>📋 {{ current_store_name }} 대타 현황</h2>
-        
-        <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 0.9em;">
-            <tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">
-                <th style="padding: 10px;">상태</th>
-                <th>매장</th>
-                <th>날짜</th>   <th>시간</th>   <th>요청자</th> <th>수락자</th> <th>관리</th>
-            </tr>
+            <div class="calendar-grid">
+                <div class="day-header">월</div><div class="day-header">화</div><div class="day-header">수</div>
+                <div class="day-header">목</div><div class="day-header">금</div><div class="day-header">토</div>
+                <div class="day-header">일</div>
 
+                {% for week in calendar_matrix %}
+                    {% for day in week %}
+                        {% if day == 0 %}
+                            <div class="day-cell empty-cell"></div>
+                        {% else %}
+                            <div class="day-cell">
+                                <span class="day-number">{{ day }}</span>
+                                {% if day in schedule_map %}
+                                    {% for schedule in schedule_map[day] %}
+                                        <div class="schedule-item" 
+                                             style="background-color: {{ schedule.bg_color }}; 
+                                                    {% if schedule.type == 'pending' %} opacity: 0.6; border: 2px dashed #999; {% endif %}">
+                                            
+                                            <div class="store-name">
+                                                {% if schedule.type == 'pending' %}(승인 대기){% endif %} 
+                                                {{ schedule.store_name }}
+                                            </div>
+                                            <div style="font-size: 0.8em; margin: 3px 0;">{{ schedule.time_str }}</div>
+                                            
+
+                                            {% if schedule.type == 'pending' %}
+                                                <form action="{{ url_for('cancel_accept', deta_id=schedule.deta_id) }}" method="post">
+                                                    <button class="btn-revert" onclick="return confirm('대타 수락을 취소하시겠습니까?')">↩️ 수락 취소</button>
+                                                </form>
+                                            {% else %}
+                                                {% if schedule.status == '없음' %}
+                                                    <form action="{{ url_for('request_deta', schedule_id=schedule.id) }}" method="post">
+                                                        <button class="btn-request" onclick="return confirm('대타를 요청하시겠습니까?')">📢 대타 구함</button>
+                                                    </form>
+                                                {% elif schedule.status == '구하는중' %}
+                                                    <span class="badge badge-green">⏳ 모집중</span>
+                                                    <form action="{{ url_for('cancel_deta', schedule_id=schedule.id) }}" method="post" style="margin-top:3px;">
+                                                        <button class="btn-cancel" onclick="return confirm('대타 요청을 취소하시겠습니까?')">❌ 요청 취소</button>
+                                                    </form>
+                                                {% elif schedule.status == '승인대기' %}
+                                                    <span class="badge badge-yellow">🔒 승인대기</span>
+                                                {% else %}
+                                                    <span class="badge badge-gray">{{ schedule.status }}</span>
+                                                {% endif %}
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <h3 style="margin-top: 0; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px;">
+                📋 {{ current_store_name }} 대타 현황
+            </h3>
+            
             {% if all_requests %}
                 {% for req in all_requests %}
-                <tr style="border-bottom: 1px solid #eee; height: 50px;">
-                    <td>
+                <div class="request-card" 
+                     style="border-left-color: {% if req[8] == '구하는중' %}#4caf50{% elif req[8] == '승인대기' %}#ff9800{% else %}#9e9e9e{% endif %};">
+                    
+                    <div class="card-header">
+                        <span class="card-store">{{ req[3] }}</span>
                         {% if req[8] == '구하는중' %} <span class="badge badge-green">🟢 모집중</span>
                         {% elif req[8] == '승인대기' %} <span class="badge badge-yellow">🟡 승인대기</span>
                         {% else %} <span class="badge badge-gray">⚪ {{ req[8] }}</span>
                         {% endif %}
-                    </td>
-                    
-                    <td>{{ req[3] }}</td>
-                    
-                    <td style="color: #333; font-weight: bold;">
-                        {{ req[6].strftime('%Y-%m-%d') }}
-                    </td>
+                    </div>
 
-                    <td style="color: #555;">
-                        {{ req[6].strftime('%H:%M') }} ~ {{ req[7].strftime('%H:%M') }}
-                    </td>
+                    <div class="card-time">
+                        📅 <b>{{ req[6].strftime('%m월 %d일') }}</b><br>
+                        ⏰ {{ req[6].strftime('%H:%M') }} ~ {{ req[7].strftime('%H:%M') }}
+                    </div>
 
-                    <td>{{ req[4] }}</td>
+                    <div class="card-people">
+                        🗣️ 요청: <b>{{ req[4] }}</b> 
+                        {% if req[5] %} <br>👉 수락: <b>{{ req[5] }}</b> {% endif %}
+                    </div>
 
-                    <td>
-                        {% if req[5] %}
-                            <span style="color: #2e7d32; font-weight: bold;">{{ req[5] }}</span>
-                        {% else %}
-                            <span style="color: #ccc;">-</span>
-                        {% endif %}
-                    </td>
-
-                    <td>
-                        {% if req[8] == '구하는중' and req[9] != user_id %}
-                            <form action="{{ url_for('accept_deta', deta_id=req[0], schedule_id=req[1]) }}" method="post">
-                                <button class="btn-sm btn-accept" style="width: auto;" onclick="return confirm('수락하시겠습니까?')">🙆‍♂️ 수락</button>
-                            </form>
-                        
-                        {% elif req[8] == '구하는중' and req[9] == user_id %}
-                             <span style="color: #2196F3;">(내 요청)</span>
-
-                        {% elif req[8] == '승인대기' %}
-                             <span style="color: #ef6c00;">승인 대기 중</span>
-                        {% endif %}
-                    </td>
-                </tr>
+                    {% if req[8] == '구하는중' and req[9] != user_id %}
+                        <form action="{{ url_for('accept_deta', deta_id=req[0], schedule_id=req[1]) }}" method="post">
+                            <button class="btn-accept" onclick="return confirm('대타를 수락하시겠습니까?')">🙆‍♂️ 제가 할게요!</button>
+                        </form>
+                    {% elif req[8] == '구하는중' and req[9] == user_id %}
+                        <div style="text-align: center; color: #2196F3; font-size: 0.9em; font-weight: bold; background: #e3f2fd; padding: 5px; border-radius: 4px;">
+                            (내가 올린 요청)
+                        </div>
+                    {% elif req[8] == '승인대기' %}
+                        <div style="text-align: center; color: #ff9800; font-size: 0.9em; border: 1px dashed #ff9800; padding: 5px; border-radius: 4px;">
+                            매니저 승인 대기중
+                        </div>
+                    {% endif %}
+                </div>
                 {% endfor %}
             {% else %}
-                <tr><td colspan="7" style="padding: 20px; color: #999;">대타 내역이 없습니다.</td></tr>
+                <div style="text-align: center; color: #999; padding: 20px;">
+                    올라온 대타 요청이 없습니다.
+                </div>
             {% endif %}
-        </table>
+        </div>
+
+    </div> <div style="text-align: center; margin-top: 20px;">
+        <a href="/" style="color: #666; text-decoration: none;">로그아웃</a>
     </div>
 
-   
-    <br><br>
-    <a href="/" style="color: #666; text-decoration: none;">로그아웃</a>
 </body>
 </html>
