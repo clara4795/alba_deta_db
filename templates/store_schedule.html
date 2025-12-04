@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="margin: 0;">🏢 {{ store_name }} 전체 근무표</h2>
+        
+        {% if my_role == '사장님' or my_role == '매니저' %}
+            <button onclick="document.getElementById('addModal').showModal()" 
+                    style="background-color: #3f51b5; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                ➕ 근무 일정 추가
+            </button>
+        {% endif %}
+    </div>
+
+    <div style="text-align: center; margin-bottom: 20px;">
+        <a href="{{ url_for('store_view', store_id=store_id, year=prev_year, month=prev_month) }}" style="text-decoration: none; font-size: 1.5em; color: #333;">&lt;</a>
+        <span style="font-size: 1.5em; font-weight: bold; margin: 0 15px;">{{ year }}년 {{ month }}월</span>
+        <a href="{{ url_for('store_view', store_id=store_id, year=next_year, month=next_month) }}" style="text-decoration: none; font-size: 1.5em; color: #333;">&gt;</a>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px;">
+        <div class="day-header" style="background:#5c6bc0; color:white; padding:10px; text-align:center;">월</div>
+        <div class="day-header" style="background:#5c6bc0; color:white; padding:10px; text-align:center;">화</div>
+        <div class="day-header" style="background:#5c6bc0; color:white; padding:10px; text-align:center;">수</div>
+        <div class="day-header" style="background:#5c6bc0; color:white; padding:10px; text-align:center;">목</div>
+        <div class="day-header" style="background:#5c6bc0; color:white; padding:10px; text-align:center;">금</div>
+        <div class="day-header" style="background:#5c6bc0; color:white; padding:10px; text-align:center;">토</div>
+        <div class="day-header" style="background:#ff8a80; color:white; padding:10px; text-align:center;">일</div>
+
+        {% for week in calendar_matrix %}
+            {% for day in week %}
+                {% if day == 0 %}
+                    <div style="background: #fafafa; border: 1px solid #eee; min-height: 120px;"></div>
+                {% else %}
+                    <div style="background: #fff; border: 1px solid #eee; min-height: 120px; padding: 5px;">
+                        <span style="font-weight:bold; color:#333;">{{ day }}</span>
+                        
+                        {% if day in schedule_map %}
+                            {% for schedule in schedule_map[day] %}
+                                <div style="background-color: #e8eaf6; border-left: 3px solid #3f51b5; padding: 4px; margin-top: 4px; font-size: 0.85em; border-radius: 2px; position: relative;">
+                                    <span style="font-weight:bold; color:#1a237e;">{{ schedule.user_name }}</span>
+                                    {% if schedule.role == '매니저' %}⭐{% endif %}
+                                    {% if schedule.role == '사장님' %}👑{% endif %}
+                                    <br>
+                                    <span style="color:#555;">{{ schedule.time_str }}</span>
+
+                                    {% if my_role == '사장님' or my_role == '매니저' %}
+                                        <form action="{{ url_for('delete_schedule', schedule_id=schedule.schedule_id) }}" method="post" style="position: absolute; top: 2px; right: 2px;">
+                                            <button type="submit" onclick="return confirm('삭제하시겠습니까?')" 
+                                                    style="background: none; border: none; color: #999; cursor: pointer; font-size: 1.1em; padding: 0;">
+                                                &times;
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+    </div>
+</div>
+
+<dialog id="addModal" style="border: none; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); padding: 20px; width: 300px;">
+    <h3 style="margin-top: 0;">📅 근무 일정 추가</h3>
+    <form action="{{ url_for('add_schedule', store_id=store_id) }}" method="post">
+        
+        <label>날짜</label><br>
+        <input type="date" name="date" required style="width: 100%; padding: 5px; margin-bottom: 10px;"><br>
+        
+        <label>직원 선택</label><br>
+        <select name="user_id" required style="width: 100%; padding: 5px; margin-bottom: 10px;">
+            {% for emp in employees %}
+                <option value="{{ emp[0] }}">{{ emp[1] }}</option>
+            {% endfor %}
+        </select><br>
+
+        <div style="display: flex; gap: 10px;">
+            <div>
+                <label>시작 시간</label><br>
+                <input type="time" name="start_time" required style="width: 100%; padding: 5px;">
+            </div>
+            <div>
+                <label>종료 시간</label><br>
+                <input type="time" name="end_time" required style="width: 100%; padding: 5px;">
+            </div>
+        </div>
+        <br>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" onclick="document.getElementById('addModal').close()" 
+                    style="background: #ddd; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">취소</button>
+            <button type="submit" 
+                    style="background: #3f51b5; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">저장</button>
+        </div>
+    </form>
+</dialog>
+
+{% endblock %}

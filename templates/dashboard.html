@@ -1,7 +1,7 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>알바 스케줄 대시보드</title>
+{% extends "base.html" %}
+
+{% block content %}
+
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f4f6f8; }
         
@@ -77,8 +77,6 @@
         .nav-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .nav-btn { text-decoration: none; font-size: 1.5em; color: #555; padding: 0 10px; }
     </style>
-</head>
-<body>
 
     {% with messages = get_flashed_messages() %}
       {% if messages %}
@@ -175,10 +173,10 @@
         </div>
 
         <div class="right-panel">
+
             <h3 style="margin-top: 0; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px;">
                 📋 {{ current_store_name }} 대타 현황
             </h3>
-            
             {% if all_requests %}
                 {% for req in all_requests %}
                 <div class="request-card" 
@@ -237,9 +235,8 @@
             {% endif %}
         </div>
 
-    </div> <div style="text-align: center; margin-top: 20px;">
+<!--    </div> <div style="text-align: center; margin-top: 20px;">
         <a href="/" style="color: #666; text-decoration: none;">로그아웃</a>
-    </div>
+    </div> -->
 
-</body>
-</html>
+{% endblock %}

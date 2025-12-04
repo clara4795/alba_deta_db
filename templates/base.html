@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>알바 스케줄 관리 시스템</title>
+    <style>
+        /* 전체 폰트 및 배경 설정 */
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f8; }
+        
+        /* 상단 네비게이션 바 스타일 */
+        .navbar {
+            background-color: #37474f; /* 어두운 남색 배경 */
+            overflow: hidden;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between; /* 양 끝 정렬 */
+            align-items: center;
+            height: 60px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .navbar-left a {
+            float: left;
+            display: block;
+            color: #eceff1;
+            text-align: center;
+            padding: 18px 20px;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        .navbar-left a:hover { background-color: #546e7a; color: white; }
+        
+        /* 현재 페이지 활성화 표시 (active 클래스) */
+        .navbar-left a.active { background-color: #ff7043; color: white; }
+
+        .navbar-right { display: flex; align-items: center; color: white; }
+        .user-info { margin-right: 20px; font-size: 0.9em; color: #cfd8dc; }
+        .btn-logout { 
+            background-color: #ef5350; color: white; padding: 8px 15px; 
+            text-decoration: none; border-radius: 4px; font-size: 14px; 
+            font-weight: bold;
+        }
+        .btn-logout:hover { background-color: #d32f2f; }
+
+        /* 개별 페이지 내용이 들어갈 곳 */
+        .content-container { padding: 20px; }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <div class="navbar-left">
+            <a href="{{ url_for('main') }}" class="{% if active_page == 'main' %}active{% endif %}">🏠 홈</a>
+            <a href="{{ url_for('store_management') }}" class="{% if active_page == 'manage' %}active{% endif %}">⚙️ 매장 등록/관리</a>
+            <a href="{{ url_for('dashboard') }}" class="{% if active_page == 'dashboard' %}active{% endif %}">📅 MY 일정표</a>
+            <a href="{{ url_for('store_list') }}" class="{% if active_page == 'store_list' %}active{% endif %}">🏢 전체 일정표</a>
+        </div>
+
+        <div class="navbar-right">
+            <span class="user-info">반갑습니다, <b>{{ session['name'] }}</b>님!</span>
+            <a href="{{ url_for('logout') }}" class="btn-logout">로그아웃</a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <script>
+            {% for message in messages %} alert("{{ message }}"); {% endfor %}
+        </script>
+      {% endif %}
+    {% endwith %}
+
+    <div class="content-container">
+        {% block content %}{% endblock %}
+    </div>
+
+</body>
+</html>

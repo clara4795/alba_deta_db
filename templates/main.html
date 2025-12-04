@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 1000px; margin: 50px auto; text-align: center;">
+    <h1 style="color: #333; margin-bottom: 40px;">👋 무엇을 하시겠습니까?</h1>
+
+    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+        
+        <a href="{{ url_for('dashboard') }}" style="text-decoration: none; color: inherit;">
+            <div style="width: 220px; padding: 30px; background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.2s;">
+                <div style="font-size: 3em; margin-bottom: 10px;">📅</div>
+                <h3 style="margin: 0; color: #37474f;">MY 일정표</h3>
+                <p style="color: #666; font-size: 0.9em;">내 근무와 급여 확인</p>
+            </div>
+        </a>
+
+        <a href="{{ url_for('store_list') }}" style="text-decoration: none; color: inherit;">
+            <div style="width: 220px; padding: 30px; background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.2s;">
+                <div style="font-size: 3em; margin-bottom: 10px;">🏢</div>
+                <h3 style="margin: 0; color: #37474f;">전체 일정표</h3>
+                <p style="color: #666; font-size: 0.9em;">동료들의 근무 확인</p>
+            </div>
+        </a>
+
+        <a href="{{ url_for('store_management') }}" style="text-decoration: none; color: inherit;">
+            <div style="width: 220px; padding: 30px; background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.2s;">
+                <div style="font-size: 3em; margin-bottom: 10px;">⚙️</div>
+                <h3 style="margin: 0; color: #37474f;">매장 관리</h3>
+                <p style="color: #666; font-size: 0.9em;">매장 등록 및 가입</p>
+            </div>
+        </a>
+
+    </div>
+</div>
+
+<style>
+    /* 마우스 올렸을 때 살짝 떠오르는 효과 */
+    div[style*="width: 220px"]:hover { transform: translateY(-5px); cursor: pointer; background-color: #fcfcfc; }
+</style>
+{% endblock %}
