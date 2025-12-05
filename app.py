@@ -25,6 +25,40 @@ def get_db_connection():
     )
     return conn
 
+# 회원가입
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method == 'POST':
+        name = request.form['name']
+        email = request.form['email']
+        password = request.form['password']
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        try:
+            # 회원 정보 DB에 저장 (INSERT)
+            cur.execute("""
+                INSERT INTO "User" (name, email, password)
+                VALUES (%s, %s, %s)
+            """, (name, email, password))
+            
+            conn.commit()
+            flash('가입이 완료되었습니다! 로그인 해주세요.')
+            return redirect(url_for('login')) # 성공하면 로그인 페이지로 이동
+            
+        except psycopg2.IntegrityError:
+            conn.rollback()
+            flash('❌ 이미 사용 중인 이메일입니다. 다른 이메일을 사용해주세요.')
+        except Exception as e:
+            conn.rollback()
+            flash(f'오류 발생: {e}')
+        finally:
+            cur.close()
+            conn.close()
+            
+    return render_template('signup.html')
+
 # 2. 메인 페이지 (로그인 화면)
 @app.route('/', methods=['GET', 'POST'])
 def login():
@@ -60,7 +94,6 @@ def main():
     return render_template('main.html', active_page='main')
 
 # [3] 전체 일정표 메뉴 (매장 선택 페이지)
-# app.py 의 store_list 함수를 아래 코드로 교체하세요
 
 @app.route('/store_list')
 def store_list():

@@ -1,29 +1,101 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-    <title>알바 스케줄 관리 - 로그인</title>
+    <meta charset="UTF-8">
+    <title>로그인 - 알바 스케줄 관리</title>
+    <style>
+        /* 회원가입 페이지와 동일한 스타일 적용 */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: #f4f6f8; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        
+        .login-container { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            width: 350px; 
+            text-align: center; 
+        }
+
+        h2 { color: #37474f; margin-bottom: 30px; }
+        
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            margin: 8px 0; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            box-sizing: border-box; /* 패딩 포함 너비 계산 */
+            font-size: 14px;
+        }
+
+        button { 
+            width: 100%; 
+            padding: 12px; 
+            background-color: #3f51b5; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            margin-top: 20px; 
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        
+        button:hover { background-color: #303f9f; }
+        
+        .footer-links { margin-top: 25px; font-size: 0.9em; color: #666; line-height: 1.6; }
+        .footer-links a { color: #3f51b5; text-decoration: none; font-weight: bold; }
+        .footer-links a:hover { text-decoration: underline; }
+
+        /* 에러 메시지 스타일 */
+        .alert-box {
+            color: #d32f2f; 
+            background-color: #ffebee; 
+            padding: 10px; 
+            border-radius: 4px; 
+            margin-bottom: 20px; 
+            font-size: 0.9em;
+            text-align: left;
+            border: 1px solid #ffcdd2;
+        }
+    </style>
 </head>
 <body>
-    <h2>로그인</h2>
-    
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <ul>
-        {% for message in messages %}
-          <li style="color: red;">{{ message }}</li>
-        {% endfor %}
-        </ul>
-      {% endif %}
-    {% endwith %}
 
-    <form method="post">
-        <label>이메일:</label><br>
-        <input type="email" name="email" required><br><br>
+    <div class="login-container">
+        <h2>🔐 로그인</h2>
         
-        <label>비밀번호:</label><br>
-        <input type="password" name="password" required><br><br>
-        
-        <button type="submit">로그인 하기</button>
-    </form>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="alert-box">
+                    {% for message in messages %}
+                        ⚠ {{ message }}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <form method="post">
+            <input type="email" name="email" placeholder="이메일 (아이디)" required>
+            <input type="password" name="password" placeholder="비밀번호" required>
+            
+            <button type="submit">로그인</button>
+        </form>
+
+        <div class="footer-links">
+            아직 계정이 없으신가요?<br>
+            <a href="{{ url_for('signup') }}">회원가입 하러 가기 &gt;</a>
+        </div>
+    </div>
+
 </body>
 </html>
