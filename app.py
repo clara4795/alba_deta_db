@@ -87,12 +87,197 @@ def store_list():
                            active_page='store_list', 
                            my_stores=my_stores)
 
-# [4] 매장 관리/등록 메뉴 (아직 기능 구현 전이므로 빈 페이지)
-@app.route('/store_management')
-def store_management():
+# [4] 매장 관리/등록 메뉴
+# app.py 수정 및 추가
+# [2] 새 매장 등록 (사장님 기능)
+@app.route('/create_store', methods=['POST'])
+def create_store():
     if 'user_id' not in session: return redirect(url_for('login'))
-    return render_template('main.html', active_page='manage') 
-    # (일단은 껍데기만 연결, 다음 단계에서 여기에 등록 폼을 만들 예정)
+    
+    name = request.form['name']
+    address = request.form['address']
+    # 비밀번호는 간소화를 위해 '1234'로 통일하거나 입력받음 (여기선 입력받음)
+    password = request.form['password'] 
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # 1. 매장 생성
+        cur.execute("""
+            INSERT INTO Store (name, address, password) 
+            VALUES (%s, %s, %s) RETURNING store_id
+        """, (name, address, password))
+        new_store_id = cur.fetchone()[0]
+        
+        # 2. 생성한 사람을 '사장님'으로 등록 (시급 NULL 가능)
+        cur.execute("""
+            INSERT INTO StoreUser (store_id, user_id, role, hourly_wage)
+            VALUES (%s, %s, '사장님', NULL)
+        """, (new_store_id, session['user_id']))
+        
+        conn.commit()
+        flash(f'✨ "{name}" 매장이 성공적으로 등록되었습니다!')
+        
+    except Exception as e:
+        conn.rollback()
+        flash('❌ 오류 발생 (매장명이 중복되었을 수 있습니다): ' + str(e))
+    finally:
+        cur.close()
+        conn.close()
+        
+    return redirect(url_for('store_search'))
+
+# [1] 매장 찾기 페이지 (검색 기능 포함)
+@app.route('/store_search')
+def store_search():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    keyword = request.args.get('q', '') # 검색어 받기
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # 검색 로직 (이름이나 주소에 키워드가 포함되면 조회)
+    # ILIKE는 대소문자 구분 없이 검색하는 PostgreSQL 문법입니다.
+    if keyword:
+        cur.execute("""
+            SELECT store_id, name, address 
+            FROM Store 
+            WHERE name ILIKE %s OR address ILIKE %s
+            ORDER BY name ASC
+        """, (f'%{keyword}%', f'%{keyword}%'))
+    else:
+        # 검색어 없으면 전체 조회
+        cur.execute("SELECT store_id, name, address FROM Store ORDER BY name ASC")
+        
+    stores = cur.fetchall()
+    
+    # 내가 이미 가입한 매장 ID 목록 (버튼 상태 구분용)
+    cur.execute("SELECT store_id FROM StoreUser WHERE user_id = %s", (session['user_id'],))
+    my_joined_ids = [row[0] for row in cur.fetchall()]
+    
+    cur.close()
+    conn.close()
+    
+    return render_template('store_search.html', 
+                           active_page='search',
+                           stores=stores, 
+                           my_joined_ids=my_joined_ids,
+                           keyword=keyword)
+
+# [2] ★ 수정됨: 비밀번호 확인 후 즉시 가입
+@app.route('/join_store_with_pw/<int:store_id>', methods=['POST'])
+def join_store_with_pw(store_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    input_pw = request.form['password']
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # 1. 매장 비밀번호 확인
+        cur.execute("SELECT password, name FROM Store WHERE store_id = %s", (store_id,))
+        result = cur.fetchone()
+        
+        if not result:
+            flash('존재하지 않는 매장입니다.')
+            return redirect(url_for('store_search'))
+            
+        real_pw = result[0]
+        store_name = result[1]
+        
+        if input_pw == real_pw:
+            # 2. 비밀번호 맞음 -> '알바생'으로 즉시 가입 (시급은 일단 0원)
+            cur.execute("""
+                INSERT INTO StoreUser (store_id, user_id, role, hourly_wage)
+                VALUES (%s, %s, '알바생', 0)
+            """, (store_id, session['user_id']))
+            conn.commit()
+            flash(f'🎉 "{store_name}"에 가입되었습니다! 직원 관리에서 시급이 설정되어야 급여가 계산됩니다.')
+        else:
+            flash('❌ 비밀번호가 틀렸습니다.')
+            
+    except Exception as e:
+        conn.rollback()
+        flash('이미 가입된 매장이거나 오류가 발생했습니다: ' + str(e))
+    finally:
+        cur.close()
+        conn.close()
+        
+    return redirect(url_for('store_search'))
+
+# [3] ★ 신규 페이지: 직원 관리 (사장님/매니저용)
+@app.route('/manage_staff/<int:store_id>')
+def manage_staff(store_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # 권한 체크 (사장만 접근 가능)
+    cur.execute("SELECT role FROM StoreUser WHERE store_id=%s AND user_id=%s", (store_id, session['user_id']))
+    res = cur.fetchone()
+    if not res or res[0] != '사장님':
+        flash('접근 권한이 없습니다.')
+        return redirect(url_for('store_view', store_id=store_id))
+    
+    my_role = res[0]
+    
+    # 직원 목록 조회 (이름, 현재 역할, 시급, 유저ID)
+    cur.execute("""
+        SELECT u.name, su.role, su.hourly_wage, su.user_id, u.email
+        FROM StoreUser su
+        JOIN "User" u ON su.user_id = u.user_id
+        WHERE su.store_id = %s
+        ORDER BY 
+            CASE WHEN su.role = '사장님' THEN 1 
+                 WHEN su.role = '매니저' THEN 2 
+                 ELSE 3 END
+    """, (store_id,))
+    staff_list = cur.fetchall()
+    
+    # 매장 이름
+    cur.execute("SELECT name FROM Store WHERE store_id = %s", (store_id,))
+    store_name = cur.fetchone()[0]
+    
+    cur.close()
+    conn.close()
+    
+    return render_template('manage_staff.html', 
+                           store_id=store_id, 
+                           store_name=store_name, 
+                           staff_list=staff_list, 
+                           my_role=my_role)
+
+# [4] 직원 정보 수정 (역할 변경 & 시급 변경 통합)
+@app.route('/update_staff/<int:store_id>/<int:target_user_id>', methods=['POST'])
+def update_staff(store_id, target_user_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    new_role = request.form['role']
+    new_wage = request.form['hourly_wage']
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            UPDATE StoreUser 
+            SET role = %s, hourly_wage = %s
+            WHERE store_id = %s AND user_id = %s
+        """, (new_role, new_wage, store_id, target_user_id))
+        conn.commit()
+        flash('✅ 직원 정보가 수정되었습니다.')
+    except Exception as e:
+        conn.rollback()
+        flash('오류: ' + str(e))
+    finally:
+        cur.close()
+        conn.close()
+        
+    return redirect(url_for('manage_staff', store_id=store_id))
 
 # [5] 로그아웃 기능 추가
 @app.route('/logout')
