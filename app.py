@@ -6,7 +6,7 @@ import random
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = config.secret_key  # 세션 암호화에 필요 (아무거나 입력 가능)
+app.secret_key = config.secret_key
 
 # 1. 데이터베이스 연결 설정 
 DB_HOST = "localhost"
@@ -26,7 +26,7 @@ def get_db_connection():
     return conn
 
 
-# [1]. 메인 페이지 (로그인 화면)
+# [0]. 메인 페이지 (로그인 화면)
 @app.route('/', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -55,8 +55,7 @@ def login():
     return render_template('login.html')
 
 
-
-# [1-1] 회원가입
+# [0-1] 회원가입
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
@@ -91,258 +90,19 @@ def signup():
     return render_template('signup.html')
 
 
-# [2] 메인 페이지 (기본 페이지) 라우트 추가
+# [1] 메인 페이지
 @app.route('/main')
 def main():
     if 'user_id' not in session: return redirect(url_for('login'))
     return render_template('main.html', active_page='main')
 
-# [3] 전체 일정표 -> 매장 선택 페이지
-@app.route('/store_list')
-def store_list():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    # 내가 가입된 매장 목록 조회 (User -> StoreUser -> Store)
-    cur.execute("""
-        SELECT s.store_id, s.name, su.role
-        FROM StoreUser su
-        JOIN Store s ON su.store_id = s.store_id
-        WHERE su.user_id = %s
-    """, (session['user_id'],))
-    
-    my_stores = cur.fetchall() # 결과 예: [(1, '댄싱컵'), (2, '편의점')]
-    
-    cur.close()
-    conn.close()
-    
-    # ★ 수정된 부분: main.html이 아니라 방금 만든 store_list.html로 보냄!
-    return render_template('store_list.html', 
-                           active_page='store_list', 
-                           my_stores=my_stores)
-
-# [4] 매장 관리/등록 메뉴
-# app.py 수정 및 추가
-# [2] 새 매장 등록 (사장님 기능)
-@app.route('/create_store', methods=['POST'])
-def create_store():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    
-    name = request.form['name']
-    address = request.form['address']
-    password = request.form['password'] 
-    
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    try:
-        # 1. 매장 생성
-        cur.execute("""
-            INSERT INTO Store (name, address, password) 
-            VALUES (%s, %s, %s) RETURNING store_id
-        """, (name, address, password))
-        new_store_id = cur.fetchone()[0]
-        
-        # 2. 생성한 사람을 '사장님'으로 등록 (시급 NULL 가능)
-        cur.execute("""
-            INSERT INTO StoreUser (store_id, user_id, role, hourly_wage)
-            VALUES (%s, %s, '사장님', NULL)
-        """, (new_store_id, session['user_id']))
-        
-        conn.commit()
-        flash(f'✨ {name} 매장이 성공적으로 등록되었습니다!')
-        
-    except Exception as e:
-        conn.rollback()
-        flash('❌ 오류 발생 (매장명이 중복되었을 수 있습니다): ' + str(e))
-    finally:
-        cur.close()
-        conn.close()
-        
-    return redirect(url_for('store_search'))
-
-# [1] 매장 찾기 페이지 (검색 기능 포함)
-@app.route('/store_search')
-def store_search():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    
-    keyword = request.args.get('q', '') # 검색어 받기
-    
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    # 검색 로직 (이름이나 주소에 키워드가 포함되면 조회)
-    # ILIKE는 대소문자 구분 없이 검색하는 PostgreSQL 문법입니다.
-    if keyword:
-        cur.execute("""
-            SELECT store_id, name, address 
-            FROM Store 
-            WHERE name ILIKE %s OR address ILIKE %s
-            ORDER BY name ASC
-        """, (f'%{keyword}%', f'%{keyword}%'))
-    else:
-        # 검색어 없으면 전체 조회
-        cur.execute("SELECT store_id, name, address FROM Store ORDER BY name ASC")
-        
-    stores = cur.fetchall()
-    
-    # 내가 이미 가입한 매장 ID 목록 (버튼 상태 구분용)
-    cur.execute("SELECT store_id FROM StoreUser WHERE user_id = %s", (session['user_id'],))
-    my_joined_ids = [row[0] for row in cur.fetchall()]
-    
-    cur.close()
-    conn.close()
-    
-    return render_template('store_search.html', 
-                           active_page='search',
-                           stores=stores, 
-                           my_joined_ids=my_joined_ids,
-                           keyword=keyword)
-
-# [2] ★ 수정됨: 비밀번호 확인 후 즉시 가입
-@app.route('/join_store_with_pw/<int:store_id>', methods=['POST'])
-def join_store_with_pw(store_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    
-    input_pw = request.form['password']
-    
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    try:
-        # 1. 매장 비밀번호 확인
-        cur.execute("SELECT password, name FROM Store WHERE store_id = %s", (store_id,))
-        result = cur.fetchone()
-        
-        if not result:
-            flash('존재하지 않는 매장입니다.')
-            return redirect(url_for('store_search'))
-            
-        real_pw = result[0]
-        store_name = result[1]
-        
-        if input_pw == real_pw:
-            # 2. 비밀번호 맞음 -> '알바생'으로 즉시 가입 (시급은 일단 0원)
-            cur.execute("""
-                INSERT INTO StoreUser (store_id, user_id, role, hourly_wage)
-                VALUES (%s, %s, '알바생', 0)
-            """, (store_id, session['user_id']))
-            conn.commit()
-            flash(f'🎉 {store_name}에 가입되었습니다!')
-        else:
-            flash('❌ 비밀번호가 틀렸습니다.')
-            
-    except Exception as e:
-        conn.rollback()
-        flash('이미 가입된 매장이거나 오류가 발생했습니다: ' + str(e))
-    finally:
-        cur.close()
-        conn.close()
-        
-    return redirect(url_for('store_search'))
-
-# [3] ★ 신규 페이지: 직원 관리 (사장님/매니저용)
-# app.py 의 manage_staff 함수 수정
-@app.route('/manage_staff/<int:store_id>')
-def manage_staff(store_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    
-    # 검색어 받기 (없으면 빈 문자열)
-    keyword = request.args.get('q', '')
-
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    # 1. 권한 체크 (사장님만 가능)
-    cur.execute("SELECT role FROM StoreUser WHERE store_id=%s AND user_id=%s", (store_id, session['user_id']))
-    res = cur.fetchone()
-    if not res or res[0] != '사장님': 
-        flash('사장님만 접근 가능한 메뉴입니다.')
-        return redirect(url_for('store_view', store_id=store_id))
-    
-    my_role = res[0]
-    
-    # 2. 직원 목록 조회 (검색어 필터 적용)
-    # 기본 쿼리
-    sql = """
-        SELECT u.name, su.role, su.hourly_wage, su.user_id, u.email
-        FROM StoreUser su
-        JOIN "User" u ON su.user_id = u.user_id
-        WHERE su.store_id = %s
-    """
-    params = [store_id]
-    
-    # 검색어가 있으면 조건 추가 (이름 검색)
-    if keyword:
-        sql += " AND u.name ILIKE %s"
-        params.append(f'%{keyword}%')
-    
-    # 정렬 (사장님 -> 매니저 -> 알바생 순)
-    sql += """
-        ORDER BY 
-            CASE WHEN su.role = '사장님' THEN 1 
-                 WHEN su.role = '매니저' THEN 2 
-                 ELSE 3 END
-    """
-    
-    cur.execute(sql, tuple(params))
-    staff_list = cur.fetchall()
-    
-    # 매장 이름 조회
-    cur.execute("SELECT name FROM Store WHERE store_id = %s", (store_id,))
-    store_name = cur.fetchone()[0]
-    
-    cur.close()
-    conn.close()
-    
-    # 템플릿에 keyword도 같이
-    return render_template('manage_staff.html', 
-                           store_id=store_id, 
-                           store_name=store_name, 
-                           staff_list=staff_list, 
-                           my_role=my_role,
-                           keyword=keyword)
-
-# [4] 직원 정보 수정 (역할 변경 & 시급 변경 통합)
-@app.route('/update_staff/<int:store_id>/<int:target_user_id>', methods=['POST'])
-def update_staff(store_id, target_user_id):
-    if 'user_id' not in session: return redirect(url_for('login'))
-    
-    new_role = request.form['role']
-    new_wage = request.form['hourly_wage']
-    
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    try:
-        cur.execute("""
-            UPDATE StoreUser 
-            SET role = %s, hourly_wage = %s
-            WHERE store_id = %s AND user_id = %s
-        """, (new_role, new_wage, store_id, target_user_id))
-        conn.commit()
-        flash('✅ 직원 정보가 수정되었습니다.')
-    except Exception as e:
-        conn.rollback()
-        flash('오류: ' + str(e))
-    finally:
-        cur.close()
-        conn.close()
-        
-    return redirect(url_for('manage_staff', store_id=store_id))
-
-# [5] 로그아웃 기능 추가
+# 로그아웃
 @app.route('/logout')
 def logout():
-    session.clear() # 세션 삭제
+    session.clear()
     return redirect(url_for('login'))
 
-# 3. 로그인 성공 후 이동할 화면 (대시보드)
-# app.py의 dashboard 함수 교체
-
-# =========================================================
+# [1-1] My 일정표 페이지
 # 색상 팔레트 (매장별 고정 색상을 위해 사용)
 STORE_COLORS = [
     '#FFCDD2', # 빨강 (파스텔)
@@ -353,7 +113,6 @@ STORE_COLORS = [
     '#B2DFDB', # 청록 (파스텔)
     '#F0F4C3', # 라임 (파스텔)
 ]
-
 @app.route('/dashboard')
 def dashboard():
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -559,9 +318,7 @@ def dashboard():
                            prev_year=prev_year, prev_month=prev_month,
                            next_year=next_year, next_month=next_month)
 
-# app.py 의 request_deta 함수를 이걸로 교체하고, 그 밑에 cancel_deta를 추가하세요.
-
-# 1. 대타 요청 함수 (수정됨: 상태를 '대기중' -> '구하는중'으로 변경)
+# [1-1-1] 대타 요청
 @app.route('/request_deta/<int:schedule_id>', methods=['POST'])
 def request_deta(schedule_id):
     if 'user_id' not in session:
@@ -587,7 +344,7 @@ def request_deta(schedule_id):
         conn.close()
     return redirect(url_for('dashboard'))
 
-# 2. ★ 대타 요청 취소 함수
+# [1-1-1] 대타 요청 취소
 @app.route('/cancel_deta/<int:schedule_id>', methods=['POST'])
 def cancel_deta(schedule_id):
     if 'user_id' not in session:
@@ -619,7 +376,7 @@ def cancel_deta(schedule_id):
         
     return redirect(url_for('dashboard'))
 
-# 2. ★ 대타 수락 처리 함수 (새로 추가!)
+# [1-1-1] 대타 수락
 @app.route('/accept_deta/<int:deta_id>/<int:schedule_id>', methods=['POST'])
 def accept_deta(deta_id, schedule_id):
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -669,7 +426,7 @@ def accept_deta(deta_id, schedule_id):
         
     return redirect(url_for('dashboard'))
 
-# 2. ★ 수락 취소 함수 (새로 추가)
+# [1-1-1] 대타 수락 취소
 @app.route('/cancel_accept/<int:deta_id>', methods=['POST'])
 def cancel_accept(deta_id):
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -701,8 +458,7 @@ def cancel_accept(deta_id):
         
     return redirect(url_for('dashboard'))
 
-
-# 대타 승인
+# [1-1-1] 대타 승인(매니저, 사장님)
 @app.route('/approve_deta/<int:deta_id>/<int:schedule_id>', methods=['POST'])
 def approve_deta(deta_id, schedule_id):
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -742,10 +498,36 @@ def approve_deta(deta_id, schedule_id):
         
     return redirect(url_for('dashboard'))
 
-# 전체 근무일정표
+# [1-2] 전체 일정표 -> 매장 선택 페이지
+@app.route('/store_list')
+def store_list():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # 내가 가입된 매장 목록 조회 (User -> StoreUser -> Store)
+    cur.execute("""
+        SELECT s.store_id, s.name, su.role
+        FROM StoreUser su
+        JOIN Store s ON su.store_id = s.store_id
+        WHERE su.user_id = %s
+    """, (session['user_id'],))
+    
+    my_stores = cur.fetchall() # 결과 예: [(1, '댄싱컵'), (2, '편의점')]
+    
+    cur.close()
+    conn.close()
+    
+    # ★ 수정된 부분: main.html이 아니라 방금 만든 store_list.html로 보냄!
+    return render_template('store_list.html', 
+                           active_page='store_list', 
+                           my_stores=my_stores)
 
+# [1-2] 전체 근무일정표 보기
 @app.route('/store/<int:store_id>')
 def store_view(store_id):
+
     if 'user_id' not in session: return redirect(url_for('login'))
     
     # 1. 날짜 파라미터 받기 (기본값: 현재 년/월)
@@ -827,7 +609,97 @@ def store_view(store_id):
                            prev_year=prev_year, prev_month=prev_month,
                            next_year=next_year, next_month=next_month)
 
-# 2. ★ 스케줄 추가 함수 (새로 추가)
+# [1-2-1] 매장별 스케줄 - 직원 관리 (사장님)
+@app.route('/manage_staff/<int:store_id>')
+def manage_staff(store_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    # 검색어 받기 (없으면 빈 문자열)
+    keyword = request.args.get('q', '')
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # 1. 권한 체크 (사장님만 가능)
+    cur.execute("SELECT role FROM StoreUser WHERE store_id=%s AND user_id=%s", (store_id, session['user_id']))
+    res = cur.fetchone()
+    if not res or res[0] != '사장님': 
+        flash('사장님만 접근 가능한 메뉴입니다.')
+        return redirect(url_for('store_view', store_id=store_id))
+    
+    my_role = res[0]
+    
+    # 2. 직원 목록 조회 (검색어 필터 적용)
+    # 기본 쿼리
+    sql = """
+        SELECT u.name, su.role, su.hourly_wage, su.user_id, u.email
+        FROM StoreUser su
+        JOIN "User" u ON su.user_id = u.user_id
+        WHERE su.store_id = %s
+    """
+    params = [store_id]
+    
+    # 검색어가 있으면 조건 추가 (이름 검색)
+    if keyword:
+        sql += " AND u.name ILIKE %s"
+        params.append(f'%{keyword}%')
+    
+    # 정렬 (사장님 -> 매니저 -> 알바생 순)
+    sql += """
+        ORDER BY 
+            CASE WHEN su.role = '사장님' THEN 1 
+                 WHEN su.role = '매니저' THEN 2 
+                 ELSE 3 END
+    """
+    
+    cur.execute(sql, tuple(params))
+    staff_list = cur.fetchall()
+    
+    # 매장 이름 조회
+    cur.execute("SELECT name FROM Store WHERE store_id = %s", (store_id,))
+    store_name = cur.fetchone()[0]
+    
+    cur.close()
+    conn.close()
+    
+    # 템플릿에 keyword도 같이
+    return render_template('manage_staff.html', 
+                           store_id=store_id, 
+                           store_name=store_name, 
+                           staff_list=staff_list, 
+                           my_role=my_role,
+                           keyword=keyword)
+
+# [1-2-1] 직원 정보 수정 (사장님)
+@app.route('/update_staff/<int:store_id>/<int:target_user_id>', methods=['POST'])
+def update_staff(store_id, target_user_id):
+    
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    new_role = request.form['role']
+    new_wage = request.form['hourly_wage']
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            UPDATE StoreUser 
+            SET role = %s, hourly_wage = %s
+            WHERE store_id = %s AND user_id = %s
+        """, (new_role, new_wage, store_id, target_user_id))
+        conn.commit()
+        flash('✅ 직원 정보가 수정되었습니다.')
+    except Exception as e:
+        conn.rollback()
+        flash('오류: ' + str(e))
+    finally:
+        cur.close()
+        conn.close()
+        
+    return redirect(url_for('manage_staff', store_id=store_id))
+
+# [1-2-1] 스케줄 추가
 @app.route('/add_schedule/<int:store_id>', methods=['POST'])
 def add_schedule(store_id):
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -868,7 +740,7 @@ def add_schedule(store_id):
     # 원래 보던 달력 페이지로 복귀
     return redirect(request.referrer)
 
-# 3. ★ 스케줄 삭제 함수 (사장님 권한 - 보너스 기능)
+# [1-2-1] 스케줄 삭제
 @app.route('/delete_schedule/<int:schedule_id>', methods=['POST'])
 def delete_schedule(schedule_id):
     # 권한 체크 로직은 생략(HTML에서 버튼 숨김 처리함)
@@ -884,6 +756,124 @@ def delete_schedule(schedule_id):
         cur.close()
         conn.close()
     return redirect(request.referrer)
+
+# [1-3] 매장 등록 및 가입 페이지
+@app.route('/store_search')
+def store_search():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    keyword = request.args.get('q', '') # 검색어 받기
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # 검색 로직 (이름이나 주소에 키워드가 포함되면 조회)
+    # ILIKE는 대소문자 구분 없이 검색하는 PostgreSQL 문법입니다.
+    if keyword:
+        cur.execute("""
+            SELECT store_id, name, address 
+            FROM Store 
+            WHERE name ILIKE %s OR address ILIKE %s
+            ORDER BY name ASC
+        """, (f'%{keyword}%', f'%{keyword}%'))
+    else:
+        # 검색어 없으면 전체 조회
+        cur.execute("SELECT store_id, name, address FROM Store ORDER BY name ASC")
+        
+    stores = cur.fetchall()
+    
+    # 내가 이미 가입한 매장 ID 목록 (버튼 상태 구분용)
+    cur.execute("SELECT store_id FROM StoreUser WHERE user_id = %s", (session['user_id'],))
+    my_joined_ids = [row[0] for row in cur.fetchall()]
+    
+    cur.close()
+    conn.close()
+    
+    return render_template('store_search.html', 
+                           active_page='search',
+                           stores=stores, 
+                           my_joined_ids=my_joined_ids,
+                           keyword=keyword)
+
+# [1-3-1] 새 매장 등록
+@app.route('/create_store', methods=['POST'])
+def create_store():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    name = request.form['name']
+    address = request.form['address']
+    password = request.form['password'] 
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # 1. 매장 생성
+        cur.execute("""
+            INSERT INTO Store (name, address, password) 
+            VALUES (%s, %s, %s) RETURNING store_id
+        """, (name, address, password))
+        new_store_id = cur.fetchone()[0]
+        
+        # 2. 생성한 사람을 '사장님'으로 등록 (시급 NULL 가능)
+        cur.execute("""
+            INSERT INTO StoreUser (store_id, user_id, role, hourly_wage)
+            VALUES (%s, %s, '사장님', NULL)
+        """, (new_store_id, session['user_id']))
+        
+        conn.commit()
+        flash(f'✨ {name} 매장이 성공적으로 등록되었습니다!')
+        
+    except Exception as e:
+        conn.rollback()
+        flash('❌ 오류 발생 (매장명이 중복되었을 수 있습니다): ' + str(e))
+    finally:
+        cur.close()
+        conn.close()
+        
+    return redirect(url_for('store_search'))
+
+# [1-3-2] 매장가입 - 비밀번호
+@app.route('/join_store_with_pw/<int:store_id>', methods=['POST'])
+def join_store_with_pw(store_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    input_pw = request.form['password']
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # 1. 매장 비밀번호 확인
+        cur.execute("SELECT password, name FROM Store WHERE store_id = %s", (store_id,))
+        result = cur.fetchone()
+        
+        if not result:
+            flash('존재하지 않는 매장입니다.')
+            return redirect(url_for('store_search'))
+            
+        real_pw = result[0]
+        store_name = result[1]
+        
+        if input_pw == real_pw:
+            # 2. 비밀번호 맞음 -> '알바생'으로 즉시 가입 (시급은 일단 0원)
+            cur.execute("""
+                INSERT INTO StoreUser (store_id, user_id, role, hourly_wage)
+                VALUES (%s, %s, '알바생', 0)
+            """, (store_id, session['user_id']))
+            conn.commit()
+            flash(f'🎉 {store_name}에 가입되었습니다!')
+        else:
+            flash('❌ 비밀번호가 틀렸습니다.')
+            
+    except Exception as e:
+        conn.rollback()
+        flash('이미 가입된 매장이거나 오류가 발생했습니다: ' + str(e))
+    finally:
+        cur.close()
+        conn.close()
+        
+    return redirect(url_for('store_search'))
 
 if __name__ == '__main__':
     app.run(debug=True)
