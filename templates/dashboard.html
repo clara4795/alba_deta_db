@@ -2,9 +2,7 @@
 
 {% block content %}
 
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f4f6f8; }
-        
+    <style>  
         /* [레이아웃] 메인 컨테이너 (좌우 분할) */
         .dashboard-container {
             display: flex;
@@ -77,14 +75,6 @@
         .nav-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .nav-btn { text-decoration: none; font-size: 1.5em; color: #555; padding: 0 10px; }
     </style>
-
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        <script>
-            {% for message in messages %} alert("{{ message }}"); {% endfor %}
-        </script>
-      {% endif %}
-    {% endwith %}
 
     <div class="dashboard-container">
         

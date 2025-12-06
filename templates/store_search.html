@@ -14,7 +14,7 @@
 
         <button onclick="document.getElementById('createStoreModal').showModal()" 
                 style="background: none; border: none; color: #3f51b5; font-weight: bold; cursor: pointer; font-size: 1em; text-decoration: underline;">
-            + 새로운 매장의 점주가 되시겠습니까?
+            + 새로운 매장을 등록하시겠습니까?
         </button>
     </div>
 
@@ -31,8 +31,8 @@
                     <span style="color: #4caf50; font-weight: bold; margin-right: 10px;">✔ 가입됨</span>
                 {% else %}
                     <button onclick="openJoinModal('{{ store[0] }}', '{{ store[1] }}')" 
-                            style="background-color: #3f51b5; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
-                        가입하기 🔒
+                            style="background-color: #3f51b5; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                        가입하기
                     </button>
                 {% endif %}
             </div>
@@ -47,7 +47,7 @@
     
     <form action="{{ url_for('create_store') }}" method="post">
         <label style="font-weight: bold; font-size: 0.9em;">매장명</label>
-        <input type="text" name="name" required placeholder="예: 스타벅스 인하대점" 
+        <input type="text" name="name" required placeholder="예: 스타벅스 부산대점" 
                style="width: 100%; padding: 10px; margin: 5px 0 15px 0; border: 1px solid #ddd; border-radius: 4px;">
         
         <label style="font-weight: bold; font-size: 0.9em;">주소</label>

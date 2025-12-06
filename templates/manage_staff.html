@@ -8,6 +8,12 @@
         <a href="{{ url_for('store_view', store_id=store_id) }}" style="text-decoration: none; color: #666;">⬅ 일정표로 돌아가기</a>
     </div>
 
+    <form action="{{ url_for('manage_staff', store_id=store_id) }}" method="get" style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <input type="text" name="q" value="{{ keyword }}" placeholder="직원 이름으로 검색..." 
+               style="flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 1em;">
+        <button type="submit" style="padding: 10px 20px; background-color: #37474f; color: white; border: none; border-radius: 5px; cursor: pointer;">검색</button>
+    </form>
+
     <table style="width: 100%; border-collapse: collapse;">
         <thead>
             <tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">
@@ -18,45 +24,54 @@
             </tr>
         </thead>
         <tbody>
-            {% for staff in staff_list %}
-            <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 10px;">
-                    <b>{{ staff[0] }}</b> <br>
-                    <span style="font-size: 0.8em; color: #888;">{{ staff[4] }}</span>
-                </td>
-                
-                <form action="{{ url_for('update_staff', store_id=store_id, target_user_id=staff[3]) }}" method="post">
-                    <td style="text-align: center;">
-                        {% if staff[1] == '사장님' %}
-                            <span style="font-weight: bold; color: #1a237e;">👑 사장님</span>
-                            <input type="hidden" name="role" value="사장님">
-                        {% else %}
-                            <select name="role" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
-                                <option value="알바생" {% if staff[1] == '알바생' %}selected{% endif %}>알바생</option>
-                                <option value="매니저" {% if staff[1] == '매니저' %}selected{% endif %}>⭐ 매니저</option>
-                            </select>
-                        {% endif %}
+            {% if staff_list %}
+                {% for staff in staff_list %}
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 10px;">
+                        <b style="font-size: 1.1em; color: #333;">{{ staff[0] }}</b> <br>
+                        <span style="font-size: 0.8em; color: #888;">{{ staff[4] }}</span>
                     </td>
                     
-                    <td style="text-align: center;">
-                        {% if staff[1] == '사장님' %}
-                            -
-                            <input type="hidden" name="hourly_wage" value="0">
-                        {% else %}
-                            <input type="number" name="hourly_wage" value="{{ staff[2] }}" style="width: 80px; padding: 5px; text-align: right;"> 원
-                        {% endif %}
+                    <form action="{{ url_for('update_staff', store_id=store_id, target_user_id=staff[3]) }}" method="post">
+                        <td style="text-align: center;">
+                            {% if staff[1] == '사장님' %}
+                                <span style="font-weight: bold; color: #1a237e;">👑 사장님</span>
+                                <input type="hidden" name="role" value="사장님">
+                            {% else %}
+                                <select name="role" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+                                    <option value="알바생" {% if staff[1] == '알바생' %}selected{% endif %}>알바생</option>
+                                    <option value="매니저" {% if staff[1] == '매니저' %}selected{% endif %}>⭐ 매니저</option>
+                                </select>
+                            {% endif %}
+                        </td>
+                        
+                        <td style="text-align: center;">
+                            {% if staff[1] == '사장님' %}
+                                -
+                                <input type="hidden" name="hourly_wage" value="0">
+                            {% else %}
+                                <input type="number" name="hourly_wage" value="{{ staff[2] }}" style="width: 80px; padding: 5px; text-align: right;"> 원
+                            {% endif %}
+                        </td>
+                        
+                        <td style="text-align: center;">
+                            {% if staff[1] != '사장님' %}
+                                <button type="submit" onclick="return confirm('정보를 수정하시겠습니까?')"
+                                        style="background-color: #2196F3; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                    저장
+                                </button>
+                            {% endif %}
+                        </td>
+                    </form>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="4" style="text-align: center; padding: 30px; color: #999;">
+                        검색된 직원이 없습니다.
                     </td>
-                    
-                    <td style="text-align: center;">
-                        {% if staff[1] != '사장님' %}
-                            <button type="submit" style="background-color: #2196F3; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">
-                                저장
-                            </button>
-                        {% endif %}
-                    </td>
-                </form>
-            </tr>
-            {% endfor %}
+                </tr>
+            {% endif %}
         </tbody>
     </table>
 </div>

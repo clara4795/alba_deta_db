@@ -25,7 +25,38 @@ def get_db_connection():
     )
     return conn
 
-# 회원가입
+
+# [1]. 메인 페이지 (로그인 화면)
+@app.route('/', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # SFW: DB에서 이메일과 비밀번호가 일치하는 사용자 찾기
+        cur.execute("SELECT user_id, name, email FROM \"User\" WHERE email = %s AND password = %s", (email, password))
+        user = cur.fetchone()
+        
+        cur.close()
+        conn.close()
+
+        if user:
+            # 로그인 성공! 세션에 정보 저장
+            session['user_id'] = user[0]
+            session['name'] = user[1]
+            return redirect(url_for('main')) # 로그인 후 이동할 곳
+        else:
+            flash('이메일 또는 비밀번호가 틀렸습니다.')
+            return redirect(url_for('login'))
+
+    return render_template('login.html')
+
+
+
+# [1-1] 회원가입
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
@@ -59,33 +90,6 @@ def signup():
             
     return render_template('signup.html')
 
-# 2. 메인 페이지 (로그인 화면)
-@app.route('/', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        # SFW: DB에서 이메일과 비밀번호가 일치하는 사용자 찾기
-        cur.execute("SELECT user_id, name, email FROM \"User\" WHERE email = %s AND password = %s", (email, password))
-        user = cur.fetchone()
-        
-        cur.close()
-        conn.close()
-
-        if user:
-            # 로그인 성공! 세션에 정보 저장
-            session['user_id'] = user[0]
-            session['name'] = user[1]
-            return redirect(url_for('main')) # 로그인 후 이동할 곳
-        else:
-            flash('이메일 또는 비밀번호가 틀렸습니다.')
-            return redirect(url_for('login'))
-
-    return render_template('login.html')
 
 # [2] 메인 페이지 (기본 페이지) 라우트 추가
 @app.route('/main')
@@ -93,8 +97,7 @@ def main():
     if 'user_id' not in session: return redirect(url_for('login'))
     return render_template('main.html', active_page='main')
 
-# [3] 전체 일정표 메뉴 (매장 선택 페이지)
-
+# [3] 전체 일정표 -> 매장 선택 페이지
 @app.route('/store_list')
 def store_list():
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -104,7 +107,7 @@ def store_list():
     
     # 내가 가입된 매장 목록 조회 (User -> StoreUser -> Store)
     cur.execute("""
-        SELECT s.store_id, s.name 
+        SELECT s.store_id, s.name, su.role
         FROM StoreUser su
         JOIN Store s ON su.store_id = s.store_id
         WHERE su.user_id = %s
@@ -129,7 +132,6 @@ def create_store():
     
     name = request.form['name']
     address = request.form['address']
-    # 비밀번호는 간소화를 위해 '1234'로 통일하거나 입력받음 (여기선 입력받음)
     password = request.form['password'] 
     
     conn = get_db_connection()
@@ -150,7 +152,7 @@ def create_store():
         """, (new_store_id, session['user_id']))
         
         conn.commit()
-        flash(f'✨ "{name}" 매장이 성공적으로 등록되었습니다!')
+        flash(f'✨ {name} 매장이 성공적으로 등록되었습니다!')
         
     except Exception as e:
         conn.rollback()
@@ -228,7 +230,7 @@ def join_store_with_pw(store_id):
                 VALUES (%s, %s, '알바생', 0)
             """, (store_id, session['user_id']))
             conn.commit()
-            flash(f'🎉 "{store_name}"에 가입되었습니다! 직원 관리에서 시급이 설정되어야 급여가 계산됩니다.')
+            flash(f'🎉 {store_name}에 가입되었습니다!')
         else:
             flash('❌ 비밀번호가 틀렸습니다.')
             
@@ -242,47 +244,66 @@ def join_store_with_pw(store_id):
     return redirect(url_for('store_search'))
 
 # [3] ★ 신규 페이지: 직원 관리 (사장님/매니저용)
+# app.py 의 manage_staff 함수 수정
 @app.route('/manage_staff/<int:store_id>')
 def manage_staff(store_id):
     if 'user_id' not in session: return redirect(url_for('login'))
     
+    # 검색어 받기 (없으면 빈 문자열)
+    keyword = request.args.get('q', '')
+
     conn = get_db_connection()
     cur = conn.cursor()
     
-    # 권한 체크 (사장만 접근 가능)
+    # 1. 권한 체크 (사장님만 가능)
     cur.execute("SELECT role FROM StoreUser WHERE store_id=%s AND user_id=%s", (store_id, session['user_id']))
     res = cur.fetchone()
-    if not res or res[0] != '사장님':
-        flash('접근 권한이 없습니다.')
+    if not res or res[0] != '사장님': 
+        flash('사장님만 접근 가능한 메뉴입니다.')
         return redirect(url_for('store_view', store_id=store_id))
     
     my_role = res[0]
     
-    # 직원 목록 조회 (이름, 현재 역할, 시급, 유저ID)
-    cur.execute("""
+    # 2. 직원 목록 조회 (검색어 필터 적용)
+    # 기본 쿼리
+    sql = """
         SELECT u.name, su.role, su.hourly_wage, su.user_id, u.email
         FROM StoreUser su
         JOIN "User" u ON su.user_id = u.user_id
         WHERE su.store_id = %s
+    """
+    params = [store_id]
+    
+    # 검색어가 있으면 조건 추가 (이름 검색)
+    if keyword:
+        sql += " AND u.name ILIKE %s"
+        params.append(f'%{keyword}%')
+    
+    # 정렬 (사장님 -> 매니저 -> 알바생 순)
+    sql += """
         ORDER BY 
             CASE WHEN su.role = '사장님' THEN 1 
                  WHEN su.role = '매니저' THEN 2 
                  ELSE 3 END
-    """, (store_id,))
+    """
+    
+    cur.execute(sql, tuple(params))
     staff_list = cur.fetchall()
     
-    # 매장 이름
+    # 매장 이름 조회
     cur.execute("SELECT name FROM Store WHERE store_id = %s", (store_id,))
     store_name = cur.fetchone()[0]
     
     cur.close()
     conn.close()
     
+    # 템플릿에 keyword도 같이
     return render_template('manage_staff.html', 
                            store_id=store_id, 
                            store_name=store_name, 
                            staff_list=staff_list, 
-                           my_role=my_role)
+                           my_role=my_role,
+                           keyword=keyword)
 
 # [4] 직원 정보 수정 (역할 변경 & 시급 변경 통합)
 @app.route('/update_staff/<int:store_id>/<int:target_user_id>', methods=['POST'])
@@ -585,7 +606,7 @@ def cancel_deta(schedule_id):
         
         if cur.rowcount > 0:
             conn.commit()
-            flash('대타 요청을 취소했습니다.')
+            #flash('대타 요청을 취소했습니다.')
         else:
             flash('취소할 수 없는 상태이거나 권한이 없습니다.')
             

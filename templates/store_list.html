@@ -1,26 +1,47 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div style="max-width: 800px; margin: 40px auto; text-align: center;">
-    <h2 style="color: #37474f; margin-bottom: 30px;">🏢 전체 스케줄을 확인할 매장을 선택하세요</h2>
+<div style="max-width: 1000px; margin: 40px auto; text-align: center;">
+    
+    <h2 style="color: #37474f; margin-bottom: 30px;">🏢 내 매장 목록</h2>
 
     {% if my_stores %}
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px;">
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 25px;">
             {% for store in my_stores %}
-                <a href="{{ url_for('store_view', store_id=store[0]) }}" style="text-decoration: none; color: inherit;">
-                    <div class="store-card">
+                <a href="{{ url_for('store_view', store_id=store[0]) }}" style="text-decoration: none; color: inherit; flex: 0 1 280px;">
+                    <div class="store-card" 
+                         style="border-top: 5px solid {% if store[2] == '사장님' %}#3f51b5{% elif store[2] == '매니저' %}#009688{% else %}#9e9e9e{% endif %};">
+                        
                         <div style="font-size: 2.5em; margin-bottom: 10px;">🏪</div>
                         <h3 style="margin: 0; color: #1a237e;">{{ store[1] }}</h3>
-                        <p style="color: #666; margin-top: 5px;">전체 근무표 보기 &gt;</p>
+                        
+                        <span style="font-size: 0.8em; color: #666; background: #eee; padding: 2px 6px; border-radius: 4px;">
+                            {{ store[2] }}
+                        </span>
+
+                        <p style="margin-top: 15px; font-weight: bold; color: #37474f;">
+                            {% if store[2] == '사장님' %}
+                                근무표 및 직원 관리 &gt;
+                            {% elif store[2] == '매니저' %}
+                                근무표 관리 &gt;
+                            {% else %}
+                                전체 근무표 보기 &gt;
+                            {% endif %}
+                        </p>
                     </div>
                 </a>
             {% endfor %}
         </div>
     {% else %}
-        <div style="padding: 40px; background: white; border-radius: 10px; color: #777;">
-            <p>소속된 매장이 없습니다.</p>
-            <p>매장을 등록하거나 가입 신청을 해주세요!</p>
-            <a href="{{ url_for('store_management') }}" style="display: inline-block; margin-top: 10px; padding: 10px 20px; background: #3f51b5; color: white; text-decoration: none; border-radius: 5px;">매장 찾으러 가기</a>
+        <div style="padding: 50px; background: white; border-radius: 10px; border: 2px dashed #ccc; max-width: 600px; margin: 0 auto;">
+            <div style="font-size: 3em; margin-bottom: 20px;">😢</div>
+            <h3 style="color: #555;">아직 소속된 매장이 없습니다.</h3>
+            <p style="color: #777;">매장에 가입하거나, 새로운 매장을 등록해보세요!</p>
+            
+            <a href="{{ url_for('store_search') }}" 
+               style="display: inline-block; margin-top: 20px; padding: 12px 25px; background: #3f51b5; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                🔍 매장 찾으러 가기
+            </a>
         </div>
     {% endif %}
 </div>
@@ -33,11 +54,12 @@
         box-shadow: 0 3px 6px rgba(0,0,0,0.08);
         transition: transform 0.2s, box-shadow 0.2s;
         border: 1px solid #eee;
+        height: 100%; /* 카드 높이 통일 */
+        box-sizing: border-box;
     }
     .store-card:hover {
         transform: translateY(-5px);
         box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-        border-color: #3f51b5;
         cursor: pointer;
     }
 </style>
