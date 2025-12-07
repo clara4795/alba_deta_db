@@ -579,19 +579,17 @@ def store_view(store_id):
     """, (store_id,))
     employees = cur.fetchall()
 
-    # 3. ★ 핵심: 해당 매장의 '모든 직원' 스케줄 조회
-    # (user_id 조건 없이 store_id로만 조회, User 테이블 조인해서 이름 가져오기)
+    # 3. 해당 매장의 모든 직원 스케줄 조회
+    # view(ScheduleInforView) 사용
     sql = """
-        SELECT 
-            s.schedule_id, u.name, s.start_time, s.end_time, su.role, s.user_id
-        FROM Schedule s
-        JOIN "User" u ON s.user_id = u.user_id
-        JOIN StoreUser su ON s.store_id = su.store_id AND s.user_id = su.user_id
-        WHERE s.store_id = %s
-          AND EXTRACT(YEAR FROM s.start_time) = %s 
-          AND EXTRACT(MONTH FROM s.start_time) = %s
-        ORDER BY s.start_time ASC
-    """
+            SELECT 
+            schedule_id, user_name, start_time, end_time, role, user_id
+            FROM ScheduleInfoView
+            WHERE store_id = %s
+            AND EXTRACT(YEAR FROM start_time) = %s 
+            AND EXTRACT(MONTH FROM start_time) = %s
+            ORDER BY start_time ASC
+        """
     cur.execute(sql, (store_id, year, month))
     rows = cur.fetchall()
     
