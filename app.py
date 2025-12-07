@@ -487,8 +487,20 @@ def approve_deta(deta_id, schedule_id):
     cur = conn.cursor()
     
     try:
-        # [Transaction 시작]
-        # 1. Deta 상태를 '완료'로 변경
+        # [Authorization 추가]
+        # 1. 스케줄이 속한 매장 ID 조회
+        cur.execute("SELECT store_id FROM Schedule WHERE schedule_id = %s", (schedule_id,))
+        store_row = cur.fetchone()
+        if not store_row: raise Exception("스케줄 정보를 찾을 수 없습니다.")
+        store_id = store_row[0]
+        
+        # 2. 내 권한 확인
+        cur.execute("SELECT role FROM StoreUser WHERE store_id = %s AND user_id = %s", (store_id, session['user_id']))
+        auth_row = cur.fetchone()
+        
+        if not auth_row or auth_row[0] not in ['사장님', '매니저']:
+             raise Exception("승인 권한이 없습니다.")
+        
         cur.execute("""
             UPDATE Deta 
             SET status = '완료' 
@@ -699,6 +711,14 @@ def update_staff(store_id, target_user_id):
     
     conn = get_db_connection()
     cur = conn.cursor()
+    cur.execute("SELECT role FROM StoreUser WHERE store_id = %s AND user_id = %s", (store_id, session['user_id']))
+    auth_row = cur.fetchone()
+    
+    if not auth_row or auth_row[0] != '사장님':
+        cur.close()
+        conn.close()
+        flash('❌ 권한 오류: 사장님만 직원 정보를 수정할 수 있습니다.')
+        return redirect(url_for('manage_staff', store_id=store_id))
     
     try:
         cur.execute("""
@@ -734,6 +754,15 @@ def add_schedule(store_id):
     
     conn = get_db_connection()
     cur = conn.cursor()
+    cur.execute("SELECT role FROM StoreUser WHERE store_id = %s AND user_id = %s", (store_id, session['user_id']))
+    auth_row = cur.fetchone()
+    
+    # 권한이 없거나(None), 알바생인 경우 거부
+    if not auth_row or auth_row[0] not in ['사장님', '매니저']:
+        cur.close()
+        conn.close()
+        flash('❌ 권한 오류: 스케줄 추가 권한이 없습니다.')
+        return redirect(request.referrer)
     
     try:
         # work_time은 DB가 알아서 계산하므로 넣지 않음 (Generated Column)
@@ -761,15 +790,32 @@ def add_schedule(store_id):
 # [1-2-1] 스케줄 삭제
 @app.route('/delete_schedule/<int:schedule_id>', methods=['POST'])
 def delete_schedule(schedule_id):
-    # 권한 체크 로직은 생략(HTML에서 버튼 숨김 처리함)
+    if 'user_id' not in session: return redirect(url_for('login'))
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        cur.execute("SELECT store_id FROM Schedule WHERE schedule_id = %s", (schedule_id,))
+        sched_row = cur.fetchone()
+        
+        if not sched_row:
+            raise Exception("존재하지 않는 스케줄입니다.")
+            
+        store_id = sched_row[0]
+
+        # 2. 요청자가 그 매장의 관리자(사장/매니저)인지 확인
+        cur.execute("SELECT role FROM StoreUser WHERE store_id = %s AND user_id = %s", (store_id, session['user_id']))
+        auth_row = cur.fetchone()
+
+        if not auth_row or auth_row[0] not in ['사장님', '매니저']:
+            raise Exception("스케줄 삭제 권한이 없습니다.")
+
+        # 권한 확인 통과 시 삭제 진행
         cur.execute("DELETE FROM Schedule WHERE schedule_id = %s", (schedule_id,))
         conn.commit()
         flash('🗑️ 스케줄이 삭제되었습니다.')
     except:
         conn.rollback()
+        flash(f'오류: {e}')
     finally:
         cur.close()
         conn.close()
