@@ -341,15 +341,21 @@ def request_deta(schedule_id):
     user_id = session['user_id']
     conn = get_db_connection()
     cur = conn.cursor()
-    
     try:
-        # 상태를 '구하는중'으로 명시해서 저장
-        cur.execute("""
+        # [INSERT + Subquery]
+        sql = """
             INSERT INTO Deta (schedule_id, requester_id, status)
-            VALUES (%s, %s, '구하는중')
-        """, (schedule_id, user_id))
-        conn.commit()
-        flash('대타 요청을 등록했습니다.')
+            SELECT schedule_id, user_id, '구하는중'
+            FROM Schedule
+            WHERE schedule_id = %s AND user_id = %s
+        """
+        cur.execute(sql, (schedule_id, user_id))
+        
+        if cur.rowcount > 0:
+            conn.commit()
+            flash('대타 요청이 등록되었습니다.')
+        else:
+            flash('본인의 스케줄만 대타를 요청할 수 있습니다.')
     except Exception as e:
         conn.rollback()
         flash('오류가 발생했습니다.')
@@ -863,16 +869,19 @@ def join_store_with_pw(store_id):
         if not result:
             flash('존재하지 않는 매장입니다.')
             return redirect(url_for('store_search'))
-            
-        real_pw = result[0]
         store_name = result[1]
+
+        # 2. [INSERT + Subquery] 비밀번호가 일치하는 경우에만 SELECT 되어 INSERT 실행
+        # "Store 테이블에서 비밀번호가 맞는 행이 찾아지면, 그 정보를 이용해 StoreUser에 넣는다"
+        sql = """
+            INSERT INTO StoreUser (store_id, user_id, role, hourly_wage)
+            SELECT store_id, %s, '알바생', 0
+            FROM Store
+            WHERE store_id = %s AND password = %s
+        """
+        cur.execute(sql, (session['user_id'], store_id, input_pw))
         
-        if input_pw == real_pw:
-            # 2. 비밀번호 맞음 -> '알바생'으로 즉시 가입 (시급은 일단 0원)
-            cur.execute("""
-                INSERT INTO StoreUser (store_id, user_id, role, hourly_wage)
-                VALUES (%s, %s, '알바생', 0)
-            """, (store_id, session['user_id']))
+        if cur.rowcount > 0:
             conn.commit()
             flash(f'🎉 {store_name}에 가입되었습니다!')
         else:
