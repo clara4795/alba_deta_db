@@ -7,7 +7,10 @@
         <h2 style="margin: 0;">🏢 {{ store_name }} 전체 근무표</h2>
         <div style="display: flex; gap: 10px;">
             {% if my_role == '사장님' or my_role == '매니저' %}
-                <button onclick="document.getElementById('addModal').showModal()" ...>➕ 근무 일정 추가</button>
+            <button onclick="document.getElementById('addModal').showModal()" 
+                    style="background-color: #9dbc4f; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                ➕ 근무 일정 추가
+            </button>
             {% endif %}
             
             {% if my_role == '사장님' %}

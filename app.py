@@ -241,6 +241,40 @@ def dashboard():
     
     cur.execute(sql_list, tuple(final_params))
     all_requests = cur.fetchall()
+
+    # -------------------------------------------------------
+    # [Query 4] GROUP BY, having을 활용한 급여 통계
+    # -------------------------------------------------------
+    # 설명: 이번 달 내 근무 기록을 그룹화(GROUP BY)하여 시급*시간의 총합(SUM)을 구함
+
+    # 1. 기본 파라미터 (유저, 연, 월)
+    salary_params = [user_id, year, month]
+    store_condition = ""
+
+    # 2. 매장이 선택되었다면 조건(AND) 추가
+    if current_store_id:
+        store_condition = " AND s.store_id = %s "
+        salary_params.append(current_store_id)
+
+    # 3. 쿼리 조합 (f-string 사용)
+    sql_salary = f"""
+        SELECT SUM( EXTRACT(EPOCH FROM s.work_time)/3600 * su.hourly_wage )
+        FROM Schedule s
+        JOIN StoreUser su ON s.store_id = su.store_id AND s.user_id = su.user_id
+        WHERE s.user_id = %s
+          AND EXTRACT(YEAR FROM s.start_time) = %s
+          AND EXTRACT(MONTH FROM s.start_time) = %s
+          {store_condition}
+        GROUP BY s.user_id
+        HAVING SUM( EXTRACT(EPOCH FROM s.work_time)/3600 * su.hourly_wage ) > 0
+    """
+
+    # 4. 실행 (파라미터는 리스트를 튜플로 변환)
+    cur.execute(sql_salary, tuple(salary_params))
+    salary_result = cur.fetchone()
+    
+    # 결과 저장
+    total_salary = int(salary_result[0]) if salary_result else 0
     cur.close()
     conn.close()
 
@@ -248,39 +282,19 @@ def dashboard():
     # 데이터 가공 (Calendar Map 만들기)
     # -------------------------------------------------------
     schedule_map = {}
-    total_salary = 0
 
-    # 1. 내 스케줄 처리
-    for row in my_rows:
+    for row in my_rows:  
         day = row[3].day
-        # 색상 결정: store_id를 인덱스로 사용
         color_idx = row[1] % len(STORE_COLORS)
         bg_color = STORE_COLORS[color_idx]
-
-        # ★ [급여 계산 로직]
-
-        hourly_wage = row[8] if row[8] else 0 # 시급이 없으면 0원 처리
-        work_interval = row[9]
-        
-        daily_wage = 0
-        if work_interval:
-            # timedelta에서 '총 시간(hour)' 추출하기
-            total_hours = work_interval.total_seconds() / 3600
-            daily_wage = int(total_hours * hourly_wage)
-        
-        # 총 급여에 누적
-        total_salary += daily_wage
-
         info = {
-            'type': 'confirmed',
-            'id': row[0], 
-            'store_name': row[2],
-            'time_str': f"{row[3].strftime('%H:%M')}~{row[4].strftime('%H:%M')}",
-            'status': row[6] if row[6] else '없음',
-            'bg_color': bg_color,
-            'daily_wage': daily_wage,
-            'wage_formatted': f"{daily_wage:,}"
-        }
+                'type': 'confirmed',
+                'id': row[0], 
+                'store_name': row[2],
+                'time_str': f"{row[3].strftime('%H:%M')}~{row[4].strftime('%H:%M')}",
+                'status': row[6] if row[6] else '없음',
+                'bg_color': bg_color
+            }
         if day in schedule_map: schedule_map[day].append(info)
         else: schedule_map[day] = [info]
 
