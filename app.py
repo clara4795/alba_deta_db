@@ -35,8 +35,7 @@ def login():
 
         conn = get_db_connection()
         cur = conn.cursor()
-        
-        # SFW: DB에서 이메일과 비밀번호가 일치하는 사용자 찾기
+
         cur.execute("SELECT user_id, name, email FROM \"User\" WHERE email = %s AND password = %s", (email, password))
         user = cur.fetchone()
         
@@ -44,7 +43,6 @@ def login():
         conn.close()
 
         if user:
-            # 로그인 성공! 세션에 정보 저장
             session['user_id'] = user[0]
             session['name'] = user[1]
             return redirect(url_for('main')) # 로그인 후 이동할 곳
@@ -67,7 +65,6 @@ def signup():
         cur = conn.cursor()
         
         try:
-            # 회원 정보 DB에 저장 (INSERT)
             cur.execute("""
                 INSERT INTO "User" (name, email, password)
                 VALUES (%s, %s, %s)
@@ -141,7 +138,7 @@ def dashboard():
     """, (user_id,))
     my_stores = cur.fetchall() 
 
-    # ★ [추가된 로직] 현재 선택된 매장 이름(current_store_name) 구하기
+    #  현재 선택된 매장 이름(current_store_name) 구하기
     current_store_name = "전체 매장" # 기본값
     if current_store_id:
         for store in my_stores:
@@ -149,8 +146,6 @@ def dashboard():
                 current_store_name = store[1]
                 break
 
-    # 4. SQL 기본 조건 (필터링 적용)
-    # 매장이 선택되었으면 SQL 뒤에 붙일 조건문 생성
     filter_condition = ""
     params = [user_id, year, month]
     
@@ -160,7 +155,6 @@ def dashboard():
 
     # -------------------------------------------------------
     # [Query 1] 내 스케줄 (확정된 것 + 내가 수락해서 대기중인 것 포함)
-    # 기존 로직을 합쳐서 가져옵니다.
     # -------------------------------------------------------
     sql_schedule = f"""
         SELECT 
@@ -183,9 +177,7 @@ def dashboard():
 
     # -------------------------------------------------------
     # [Query 2] 내가 수락한(승인대기) 남의 스케줄
-    # (이건 내 스케줄 테이블엔 없지만 달력엔 보여야 함)
     # -------------------------------------------------------
-    # 파라미터 다시 세팅 (user_id, year, month) + optional store_id
     params_pending = [user_id, year, month]
     if current_store_id: params_pending.append(current_store_id)
 
@@ -205,14 +197,10 @@ def dashboard():
 
     # -------------------------------------------------------
     # [Query 3] 하단 리스트 (전체 대타 내역)
-    # 조건: '구하는중'만 보는 게 아니라 전체 다 봄.
-    # 단, '완료'된 건 너무 많으면 지저분하니까 최근 것만 보거나 해야겠지만, 일단 다 보여줌.
     # -------------------------------------------------------
-    # 파라미터: user_id(내 매장만 보기 위해), + optional store_id
     params_list = [user_id]
     if current_store_id: 
         params_list.append(current_store_id)
-        # 쿼리 중간에 넣을 필터 조건
         filter_clause = "AND s.store_id = %s" 
     else:
         filter_clause = ""
@@ -227,7 +215,6 @@ def dashboard():
             JOIN Store st ON s.store_id = st.store_id
             JOIN "User" u_req ON d.requester_id = u_req.user_id
             LEFT JOIN "User" u_acc ON d.accepter_id = u_acc.user_id
-            -- ★ [추가됨] 이 글을 보는 '나(Session user)'의 정보를 해당 매장에서 찾기
             JOIN StoreUser su_me ON s.store_id = su_me.store_id AND su_me.user_id = %s
             WHERE 1=1
             {filter_clause}
@@ -235,7 +222,6 @@ def dashboard():
                 CASE WHEN d.status = '구하는중' THEN 1 WHEN d.status = '승인대기' THEN 2 ELSE 3 END,
                 s.start_time ASC
         """
-    # ★ 파라미터 순서 재정의 (쿼리가 바뀌었으므로)
     final_params = [user_id] 
     if current_store_id: final_params.append(current_store_id)
     
@@ -245,7 +231,6 @@ def dashboard():
     # -------------------------------------------------------
     # [Query 4] GROUP BY, having을 활용한 급여 통계
     # -------------------------------------------------------
-    # 설명: 이번 달 내 근무 기록을 그룹화(GROUP BY)하여 시급*시간의 총합(SUM)을 구함
 
     # 1. 기본 파라미터 (유저, 연, 월)
     salary_params = [user_id, year, month]
@@ -301,9 +286,8 @@ def dashboard():
     # 2. 승인 대기 스케줄 처리 (흐릿하게)
     for row in pending_rows:
         day = row[3].day
-        # 승인 대기는 색상을 좀 다르게 하거나 흐릿하게 처리 (HTML에서 opacity 조절)
         color_idx = row[1] % len(STORE_COLORS)
-        bg_color = STORE_COLORS[color_idx] # 같은 매장 색상 쓰되 흐리게
+        bg_color = STORE_COLORS[color_idx] 
 
         info = {
             'type': 'pending',
@@ -325,8 +309,8 @@ def dashboard():
                            name=session['name'], user_id=user_id,
                            year=year, month=month, 
                            calendar_matrix=cal, schedule_map=schedule_map,
-                           all_requests=all_requests, # 전체 리스트 전달
-                           my_stores=my_stores, current_store_id=current_store_id, # 필터용 데이터
+                           all_requests=all_requests, 
+                           my_stores=my_stores, current_store_id=current_store_id,
                            current_store_name=current_store_name,
                            total_salary=total_salary_str,
                            prev_year=prev_year, prev_month=prev_month,
@@ -412,7 +396,7 @@ def accept_deta(deta_id, schedule_id):
         target_start = target_schedule[0]
         target_end = target_schedule[1]
         
-        # 2. ★ 시간 겹침 확인 (Transaction 조건)
+        # 2. 시간 겹침 확인 (Transaction 조건)
         # 내 스케줄 중에서, 타겟 스케줄과 시간이 겹치는게 있는지 카운트
         check_sql = """
             SELECT COUNT(*) FROM Schedule 
@@ -427,7 +411,6 @@ def accept_deta(deta_id, schedule_id):
         if conflict_count > 0:
             flash('❌ 오류: 해당 시간에 이미 본인의 근무가 있어 수락할 수 없습니다!')
         else:
-            # 3. 겹치는 게 없으면 수락 처리 (Update)
             cur.execute("""
                 UPDATE Deta 
                 SET accepter_id = %s, status = '승인대기' 
@@ -487,7 +470,6 @@ def approve_deta(deta_id, schedule_id):
     cur = conn.cursor()
     
     try:
-        # [Authorization 추가]
         # 1. 스케줄이 속한 매장 ID 조회
         cur.execute("SELECT store_id FROM Schedule WHERE schedule_id = %s", (schedule_id,))
         store_row = cur.fetchone()
@@ -508,19 +490,16 @@ def approve_deta(deta_id, schedule_id):
         """, (deta_id,))
         
         # 2. Schedule의 주인을 수락자(accepter_id)로 변경
-        # (Deta 테이블에 있는 accepter_id를 가져와서 Schedule을 업데이트하는 고급 쿼리)
         cur.execute("""
             UPDATE Schedule
             SET user_id = (SELECT accepter_id FROM Deta WHERE deta_id = %s)
             WHERE schedule_id = %s
         """, (deta_id, schedule_id))
-        
-        # 두 쿼리가 모두 문제없이 실행되면 저장!
+
         conn.commit()
         flash('✅ 승인 완료! 스케줄이 변경되었습니다.')
         
     except Exception as e:
-        # 하나라도 에러나면 없던 일로 되돌리기
         conn.rollback()
         flash('❌ 오류 발생: ' + str(e))
         
@@ -546,12 +525,11 @@ def store_list():
         WHERE su.user_id = %s
     """, (session['user_id'],))
     
-    my_stores = cur.fetchall() # 결과 예: [(1, '댄싱컵'), (2, '편의점')]
+    my_stores = cur.fetchall()
     
     cur.close()
     conn.close()
-    
-    # ★ 수정된 부분: main.html이 아니라 방금 만든 store_list.html로 보냄!
+
     return render_template('store_list.html', 
                            active_page='store_list', 
                            my_stores=my_stores)
@@ -587,8 +565,7 @@ def store_view(store_id):
     my_role_row = cur.fetchone()
     my_role = my_role_row[0] if my_role_row else None
 
-    # [3] ★ 직원 목록 조회 (스케줄 추가할 때 선택지용)
-    # 사장님이나 매니저만 필요하지만, 일단 다 가져와서 HTML에서 처리
+    # [3] 직원 목록 조회
     cur.execute("""
         SELECT u.user_id, u.name 
         FROM StoreUser su
@@ -614,17 +591,16 @@ def store_view(store_id):
     cur.close()
     conn.close()
 
-    # 4. 달력 데이터 가공 ({ 날짜 : [스케줄 리스트] })
+    # 4. 달력 데이터
     schedule_map = {}
     for row in rows:
         day = row[2].day
-        # 이름, 시간, 역할 정보를 담음
         info = {
             'schedule_id': row[0], 
             'user_name': row[1],
             'time_str': f"{row[2].strftime('%H:%M')}~{row[3].strftime('%H:%M')}",
             'role': row[4],
-            'is_me': (row[5] == session['user_id']) # 내 스케줄인지 표시
+            'is_me': (row[5] == session['user_id']) 
         }
         if day in schedule_map: schedule_map[day].append(info)
         else: schedule_map[day] = [info]
@@ -660,7 +636,6 @@ def manage_staff(store_id):
     my_role = res[0]
     
     # 2. 직원 목록 조회 (검색어 필터 적용)
-    # 기본 쿼리
     sql = """
         SELECT u.name, su.role, su.hourly_wage, su.user_id, u.email
         FROM StoreUser su
@@ -692,7 +667,6 @@ def manage_staff(store_id):
     cur.close()
     conn.close()
     
-    # 템플릿에 keyword도 같이
     return render_template('manage_staff.html', 
                            store_id=store_id, 
                            store_name=store_name, 
@@ -765,16 +739,10 @@ def add_schedule(store_id):
         return redirect(request.referrer)
     
     try:
-        # work_time은 DB가 알아서 계산하므로 넣지 않음 (Generated Column)
         cur.execute("""
             INSERT INTO Schedule (store_id, user_id, start_time, end_time, work_time)
             VALUES (%s, %s, %s, %s, (%s::timestamp - %s::timestamp))
         """, (store_id, target_user_id, start_dt, end_dt, end_dt, start_dt))
-        # 원래 work_time 자동계산 컬럼이면 빼도 되지만, 
-        # 혹시 직접 입력 방식(INTERVAL)으로 바꾸셨다면 위처럼 계산식을 넣어주거나 파이썬에서 계산해야 합니다.
-        # 저번 대화에서 '직접 입력' 방식으로 DDL을 바꾸셨으므로, 
-        # 위 쿼리처럼 두 시간의 차이(뺄셈)를 work_time 값으로 넣어주면 완벽합니다.
-
         conn.commit()
         flash('✅ 스케줄이 추가되었습니다.')
     except Exception as e:
@@ -832,7 +800,6 @@ def store_search():
     cur = conn.cursor()
     
     # 검색 로직 (이름이나 주소에 키워드가 포함되면 조회)
-    # ILIKE는 대소문자 구분 없이 검색하는 PostgreSQL 문법입니다.
     if keyword:
         cur.execute("""
             SELECT store_id, name, address 
@@ -917,8 +884,7 @@ def join_store_with_pw(store_id):
             return redirect(url_for('store_search'))
         store_name = result[1]
 
-        # 2. [INSERT + Subquery] 비밀번호가 일치하는 경우에만 SELECT 되어 INSERT 실행
-        # "Store 테이블에서 비밀번호가 맞는 행이 찾아지면, 그 정보를 이용해 StoreUser에 넣는다"
+        # 2. [INSERT + Subquery]
         sql = """
             INSERT INTO StoreUser (store_id, user_id, role, hourly_wage)
             SELECT store_id, %s, '알바생', 0
